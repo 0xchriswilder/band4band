@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+/* ============================================
+   Confidential Payroll Design System
+   Warm earth-tone palette
+   ============================================ */
+
+:root {
+  /* Primary Colors (Payroll Orange) */
+  --color-primary: #FF8C00;
+  --color-primary-light: #FFB347;
+  --color-primary-dark: #CC7000;
+  --color-primary-hover: #E07D00;
+
+  /* Backgrounds */
+  --color-bg-white: #FFFFFF;
+  --color-bg-light: #f8f7f5;
+  --color-bg-dark: #1d150c;
+  --color-bg-surface: #fcfaf8;
+
+  /* Text */
+  --color-text-primary: #1d150c;
+  --color-text-secondary: #a17745;
+  --color-text-tertiary: #c4a882;
+  --color-text-on-dark: #FFFFFF;
+  --color-text-on-primary: #FFFFFF;
+
+  /* Status Colors */
+  --color-success: #10B981;
+  --color-success-bg: #ECFDF5;
+  --color-warning: #F59E0B;
+  --color-warning-bg: #FFFBEB;
+  --color-error: #EF4444;
+  --color-error-bg: #FEF2F2;
+  --color-info: #3B82F6;
+  --color-info-bg: #EFF6FF;
+
+  /* Borders */
+  --color-border-light: #eaddcd;
+  --color-border-input: #d4c4a8;
+  --color-border-focus: #FF8C00;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
+  --shadow-glow: 0 0 40px rgb(255 140 0 / 0.15);
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-light);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+a:hover {
+  color: var(--color-primary-dark);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Animated gradient background */
+.gradient-hero {
+  background: linear-gradient(135deg, #fdf6ee 0%, #fcfaf8 40%, #fef0db 70%, #fcfaf8 100%);
+}
+
+.gradient-dark-hero {
+  background: linear-gradient(135deg, #1d150c 0%, #2a1e12 50%, #1d150c 100%);
+}
+
+/* Glass-morphism card */
+.glass-card {
+  background: rgba(252, 250, 248, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(234, 221, 205, 0.6);
+}
+
+/* Pulse animation for status dot */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #f4eee6 25%, #eaddcd 50%, #f4eee6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Custom scrollbar for tables */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f4eee6;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d4c4a8;
+  border-radius: 3px;
+}
+
+@theme {
+  --color-payroll-orange: #FF8C00;
+  --color-payroll-orange-light: #FFB347;
+  --color-payroll-orange-dark: #CC7000;
+
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  --color-gray-50: #fcfaf8;
+  --color-gray-100: #f4eee6;
+  --color-gray-200: #eaddcd;
+  --color-gray-300: #d4c4a8;
+  --color-gray-400: #c4a882;
+  --color-gray-500: #a17745;
+  --color-gray-600: #8a6435;
+  --color-gray-700: #5c4222;
+  --color-gray-800: #2a1e12;
+  --color-gray-900: #1d150c;
+}
