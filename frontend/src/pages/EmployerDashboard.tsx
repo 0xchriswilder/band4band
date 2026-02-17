@@ -43,7 +43,7 @@ import { useWrapToken } from '../hooks/useWrapToken';
 import { useConfidentialBalance } from '../hooks/useConfidentialBalance';
 import { useFhevmEncrypt } from '../hooks/useFhevmEncrypt';
 import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
-import { formatAddress, formatAmount, parseAmount } from '../lib/utils';
+import { formatAddress, formatAmount, parseAmount, getUserFriendlyErrorMessage } from '../lib/utils';
 import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
 import { useEmployerInvoices, useEmployerLatestPaymentHandles, useEmployerEmployeeNames } from '../hooks/usePayrollHistory';
@@ -95,7 +95,7 @@ export function EmployerDashboard() {
   } = useConfidentialBalance();
 
   const { encryptAmount } = useFhevmEncrypt();
-  const { decryptHandle } = useFhevmDecrypt();
+  const { decryptHandle, decryptHandleBatch, isDecrypting: isDecryptingFhe } = useFhevmDecrypt();
   const { writeContractAsync, isPending: isUnwrapWriting } = useWriteContract();
 
   const [showBalance, setShowBalance] = useState(false);
@@ -184,7 +184,7 @@ export function EmployerDashboard() {
         toast.success(`${rows.length} employee(s) onboarded successfully`);
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Import failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Import failed'));
     } finally {
       setIsImporting(false);
     }
@@ -202,7 +202,7 @@ export function EmployerDashboard() {
       setEmployeeName('');
       setSalary('');
     } catch (err: any) {
-      toast.error(err?.message || 'Onboard failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Onboard failed'));
     }
   };
 
@@ -214,7 +214,7 @@ export function EmployerDashboard() {
       setEditingEmployee(null);
       setEditSalaryValue('');
     } catch (err: any) {
-      toast.error(err?.message || 'Edit salary failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Edit salary failed'));
     }
   };
 
@@ -223,7 +223,7 @@ export function EmployerDashboard() {
       await removeEmployeeFromPayroll(employeeAddr);
       toast.success('Employee removed');
     } catch (err: any) {
-      toast.error(err?.message || 'Remove failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Remove failed'));
     }
   };
 
@@ -243,7 +243,7 @@ export function EmployerDashboard() {
         toast.success('Salary decrypted — pay amount updated');
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Decrypt failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Decrypt failed'));
     } finally {
       setDecryptingEmployee(null);
     }
@@ -274,7 +274,7 @@ export function EmployerDashboard() {
       toast.success('Payroll executed successfully');
       reloadPaymentHandles();
     } catch (err: any) {
-      toast.error(err?.message || 'Payroll failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Payroll failed'));
     }
   };
 
@@ -421,18 +421,21 @@ export function EmployerDashboard() {
 
             {/* Register section */}
             {!hasPayroll && (
-              <motion.div initial="hidden" animate="visible" variants={fadeUp}>
+              <motion.div initial="hidden" animate="visible" variants={fadeUp} className="space-y-3">
                 <Card variant="elevated" padding="lg" className="border-l-4 border-l-[var(--color-primary)]">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                       <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Step 1: Register your payroll contract</h2>
                       <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Deploy a dedicated confidential payroll contract via the factory.</p>
                     </div>
-                    <Button size="lg" onClick={async () => { try { await registerEmployer(); toast.success('Payroll registered!'); } catch (err: any) { toast.error(err?.message || 'Registration failed'); }}} disabled={!isConnected || isWriting} loading={isWriting}>
+                    <Button size="lg" onClick={async () => { try { await registerEmployer(); toast.success('Payroll registered!'); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Registration failed')); }}} disabled={!isConnected || isWriting} loading={isWriting}>
                       <Building2 className="h-4 w-4" /> Register Payroll
                     </Button>
                   </div>
                 </Card>
+                <p className="text-sm text-[var(--color-text-tertiary)] text-center">
+                  Not an employer? <Link to="/employee" className="text-[var(--color-primary)] font-medium hover:underline">Go to Employee Portal</Link>
+                </p>
               </motion.div>
             )}
 
@@ -470,7 +473,7 @@ export function EmployerDashboard() {
                     <Input type="number" placeholder="0.00" step="0.01" min="0" value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} className="text-sm" />
                     <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setWrapAmount(usdcBalanceFormatted)}>MAX</button>
                   </div>
-                  <Button size="sm" onClick={async () => { if (!wrapAmount || Number(wrapAmount) <= 0) return; try { await wrapUsdc(wrapAmount); toast.success('Tokens wrapped!'); setWrapAmount(''); refetchBalances(); refetchCusdcpBalance(); } catch (err: any) { toast.error(err?.message || 'Wrap failed'); }}} disabled={!isConnected || isWrapping || !wrapAmount || Number(wrapAmount) <= 0 || usdcBalance === 0n} loading={isWrapping}>
+                  <Button size="sm" onClick={async () => { if (!wrapAmount || Number(wrapAmount) <= 0) return; try { await wrapUsdc(wrapAmount); toast.success('Tokens wrapped!'); setWrapAmount(''); refetchBalances(); refetchCusdcpBalance(); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Wrap failed')); }}} disabled={!isConnected || isWrapping || !wrapAmount || Number(wrapAmount) <= 0 || usdcBalance === 0n} loading={isWrapping}>
                     <ShieldCheck className="h-4 w-4" /> {wrapAmount && needsApproval(wrapAmount) ? 'Approve & Wrap' : 'Wrap'}
                   </Button>
                 </div>
@@ -500,7 +503,7 @@ export function EmployerDashboard() {
                       await writeContractAsync({ address: CONTRACTS.CONF_TOKEN, abi: CONF_TOKEN_ABI, functionName: 'unwrap', args: [address, address, encrypted.handles[0], encrypted.inputProof as `0x${string}`] });
                       toast.success('Unwrap initiated (async via gateway)');
                       setUnwrapAmount(''); refetchBalances(); refetchCusdcpBalance();
-                    } catch (err: any) { toast.error(err?.message || 'Unwrap failed'); } finally { setIsUnwrapping(false); }
+                    } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Unwrap failed')); } finally { setIsUnwrapping(false); }
                   }} disabled={!isConnected || isUnwrapping || isUnwrapWriting || !unwrapAmount || Number(unwrapAmount) <= 0 || !fheReady} loading={isUnwrapping || isUnwrapWriting}>
                     <ShieldOff className="h-4 w-4" /> Unwrap
                   </Button>
@@ -607,9 +610,58 @@ export function EmployerDashboard() {
                 <Users className="h-5 w-5 text-[var(--color-primary)]" /> Employees
                 {localEmployees.length > 0 && <Badge variant="primary" size="sm">{localEmployees.length}</Badge>}
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {(() => {
+                  const addressesToDecrypt = localEmployees
+                    .map((e) => e.address.toLowerCase())
+                    .filter((addr) => salaryHandles[addr] && !(addr in decryptedSalaries));
+                  const handlesToDecrypt = addressesToDecrypt.map((addr) => salaryHandles[addr]);
+                  const handleToAddr: Record<string, string> = {};
+                  addressesToDecrypt.forEach((addr) => { handleToAddr[salaryHandles[addr]] = addr; });
+                  const canBatchDecrypt = handlesToDecrypt.length > 0 && !isDecryptingFhe;
+                  return (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={async () => {
+                        if (!canBatchDecrypt) return;
+                        try {
+                          const result = await decryptHandleBatch(handlesToDecrypt, CONTRACTS.CONF_TOKEN);
+                          if (Object.keys(result).length === 0) {
+                            toast.error('Batch decryption returned no values');
+                            return;
+                          }
+                          setDecryptedSalaries((prev) => {
+                            const next = { ...prev };
+                            for (const [handle, value] of Object.entries(result)) {
+                              const addr = handleToAddr[handle];
+                              if (addr) next[addr] = value;
+                            }
+                            return next;
+                          });
+                          setPaySalaries((prev) => {
+                            const next = { ...prev };
+                            for (const [handle, value] of Object.entries(result)) {
+                              const addr = handleToAddr[handle];
+                              if (addr) next[addr] = formatAmount(value, TOKEN_CONFIG.decimals);
+                            }
+                            return next;
+                          });
+                          toast.success(`Decrypted ${Object.keys(result).length} salary amount(s)`);
+                        } catch (err: any) {
+                          toast.error(getUserFriendlyErrorMessage(err, 'Batch decrypt failed'));
+                        }
+                      }}
+                      disabled={!canBatchDecrypt}
+                      loading={isDecryptingFhe}
+                      title={handlesToDecrypt.length === 0 ? 'No salaries to decrypt (decrypt or pay first)' : 'Decrypt all on-chain salaries (one signature)'}
+                    >
+                      <Unlock className="h-4 w-4" /> Decrypt all
+                    </Button>
+                  );
+                })()}
                 {hasPayroll && !isOperatorSet && (
-                  <Button variant="secondary" size="sm" onClick={async () => { try { await approvePayrollOperator(); toast.success('Payroll operator approved!'); } catch (err: any) { toast.error(err?.message || 'Approval failed'); }}} disabled={isWriting} loading={isWriting}>
+                  <Button variant="secondary" size="sm" onClick={async () => { try { await approvePayrollOperator(); toast.success('Payroll operator approved!'); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Approval failed')); }}} disabled={isWriting} loading={isWriting}>
                     <CheckCircle2 className="h-4 w-4" /> Approve Payroll
                   </Button>
                 )}
@@ -713,7 +765,7 @@ export function EmployerDashboard() {
                                             toast.success(`Paid ${formatAddress(e.address, 4)}`);
                                             reloadPaymentHandles();
                                           } catch (err: any) {
-                                            toast.error(err?.message ?? 'Payment failed');
+                                            toast.error(getUserFriendlyErrorMessage(err, 'Payment failed'));
                                           } finally {
                                             setPayingEmployee(null);
                                           }

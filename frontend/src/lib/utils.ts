@@ -27,3 +27,22 @@ export function parseAmount(amount: string, decimals = 6): bigint {
   return BigInt(integer + paddedFraction);
 }
 
+/** Turn wallet/transaction errors (e.g. user rejected) into a short, user-friendly message. */
+export function getUserFriendlyErrorMessage(err: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes('user rejected') ||
+    lower.includes('user denied') ||
+    lower.includes('rejected the request') ||
+    lower.includes('denied transaction') ||
+    lower.includes('tx signature: user denied') ||
+    lower.includes('request rejected')
+  ) {
+    return 'You cancelled the transaction. You can try again when you\'re ready.';
+  }
+  if (msg && msg.length < 120) return msg;
+  if (msg) return msg.slice(0, 100) + '…';
+  return fallback;
+}
+

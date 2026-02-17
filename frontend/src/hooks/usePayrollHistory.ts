@@ -383,3 +383,28 @@ export function useEmployerInvoices(monthDue: string) {
 
   return { invoices, invoicedAddresses, isLoading, reload: fetch };
 }
+
+/* ─── Mark invoices as paid (frontend only: call as soon as payment tx is confirmed, not by indexer) ─── */
+
+export async function markInvoicesPaidForMonth(
+  employerAddress: string,
+  employeeAddresses: string[],
+  monthDue: string,
+  txHash: string
+): Promise<void> {
+  if (!employerAddress || !monthDue || !txHash || employeeAddresses.length === 0) return;
+  const employer = employerAddress.toLowerCase();
+  const now = new Date().toISOString();
+  for (const emp of employeeAddresses) {
+    const employee = emp.toLowerCase();
+    const { error } = await supabase
+      .from('employee_invoices')
+      .update({ paid_at: now, paid_tx_hash: txHash })
+      .eq('employer_address', employer)
+      .eq('employee_address', employee)
+      .eq('month_due', monthDue);
+    if (error) {
+      console.error('[Supabase] mark invoice paid error:', error.message);
+    }
+  }
+}

@@ -349,13 +349,19 @@ async function indexPayroll(payrollAddress: string) {
   );
   const BLOCK_WINDOW = 50000;
 
-  let from = parseInt(await getMeta(`${payrollAddress}_lastIndexedBlock`, "0"));
+  let from = parseInt(await getMeta(`${payrollAddress}_lastIndexedBlock`, "0"), 10);
   const latest = await provider.getBlockNumber();
   const safeToBlock = Math.max(0, latest - CONFIRMATIONS);
 
   if (from === 0) {
-    from = Math.max(0, safeToBlock - 5000);
-    console.log(`First time indexing ${payrollAddress}, starting at ${from}`);
+    const { data: row } = await supabase
+      .from("payrolls")
+      .select("deployed_at_block")
+      .eq("address", payrollAddress.toLowerCase())
+      .single();
+    const deployedBlock = row?.deployed_at_block != null ? Number(row.deployed_at_block) : 0;
+    from = deployedBlock > 0 ? deployedBlock : safeToBlock;
+    console.log(`First time indexing ${payrollAddress}, starting at block ${from} (recent only, no past backfill)`);
   }
 
   if (safeToBlock <= from) {

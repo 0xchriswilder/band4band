@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   FileText,
   Calendar,
+  Building2,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -33,7 +35,7 @@ import { useConfidentialBalance } from '../hooks/useConfidentialBalance';
 import { useWrapToken } from '../hooks/useWrapToken';
 import { useFhevm } from '../providers/useFhevmContext';
 import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
-import { formatAddress, formatAmount, parseAmount } from '../lib/utils';
+import { formatAddress, formatAmount, parseAmount, getUserFriendlyErrorMessage } from '../lib/utils';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
 
 const fadeUp = {
@@ -47,7 +49,7 @@ export function EmployeeDashboard() {
   const { decryptHandle } = useFhevmDecrypt();
   const { encryptAmount } = useFhevmEncrypt();
   const { writeContractAsync, isPending: isUnwrapWriting } = useWriteContract();
-  const { employee, isEmployee } = useEmployeeProfile();
+  const { employee, isEmployee, isLoading: employeeLoading } = useEmployeeProfile();
   const { payments, total: paymentCount, isLoading, reload } = useEmployeePaymentHistory();
   const { submit: submitInvoice, isSubmitting: isSubmittingInvoice, error: invoiceError } = useSubmitEmployeeInvoice();
 
@@ -90,7 +92,7 @@ export function EmployeeDashboard() {
         toast.success('Amount decrypted');
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Decrypt failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Decrypt failed'));
     } finally {
       setDecryptingKey(null);
     }
@@ -118,7 +120,7 @@ export function EmployeeDashboard() {
       refetchCusdcpBalance();
       refetchUsdc();
     } catch (err: any) {
-      toast.error(err?.message || 'Unwrap failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Unwrap failed'));
       console.error('[Unwrap] Failed:', err);
     } finally {
       setIsUnwrapping(false);
@@ -176,6 +178,27 @@ export function EmployeeDashboard() {
           { icon: CheckCircle2, label: 'Verifiable' },
         ]}
       />
+    );
+  }
+
+  if (isConnected && !employeeLoading && !isEmployee) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-lg mx-auto">
+        <Card variant="elevated" padding="lg" className="text-center">
+          <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
+            <UserCircle className="h-7 w-7 text-amber-600" />
+          </div>
+          <h2 className="text-xl font-bold text-[var(--color-text-primary)] mb-2">Not registered as an employee</h2>
+          <p className="text-sm text-[var(--color-text-secondary)] mb-6">
+            This wallet is not onboarded as an employee. If you are an employer, use the Employer Dashboard. Otherwise, ask your employer to add your wallet address to their payroll.
+          </p>
+          <Link to="/employer">
+            <Button variant="primary" size="md" className="gap-2">
+              <Building2 className="h-4 w-4" /> Go to Employer Dashboard
+            </Button>
+          </Link>
+        </Card>
+      </motion.div>
     );
   }
 
@@ -411,7 +434,7 @@ export function EmployeeDashboard() {
                       refetchUsdc();
                       refetchCusdcpBalance();
                     } catch (err: any) {
-                      toast.error(err?.message || 'Wrap failed');
+                      toast.error(getUserFriendlyErrorMessage(err, 'Wrap failed'));
                     }
                   }}
                   disabled={!isConnected || isWrapping || !wrapAmount || Number(wrapAmount) <= 0 || usdcBalance === 0n}

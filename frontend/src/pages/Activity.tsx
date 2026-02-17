@@ -30,7 +30,7 @@ import {
   useEmployeeProfile,
 } from '../hooks/usePayrollHistory';
 import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
-import { formatAddress, formatAmount } from '../lib/utils';
+import { formatAddress, formatAmount, getUserFriendlyErrorMessage } from '../lib/utils';
 import { TOKEN_CONFIG, CONTRACTS } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
 
@@ -84,7 +84,7 @@ export function Activity() {
         toast.success('Amount decrypted');
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Decrypt failed');
+      toast.error(getUserFriendlyErrorMessage(err, 'Decrypt failed'));
     } finally {
       setDecryptingKey(null);
     }

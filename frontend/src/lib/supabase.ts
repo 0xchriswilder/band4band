@@ -62,6 +62,8 @@ export interface EmployeeInvoiceRow {
   month_due: string;
   data: EmployeeInvoiceData;
   created_at: string;
+  paid_at: string | null;
+  paid_tx_hash: string | null;
 }
 
 export interface EmployeeDisplayNameRow {
