@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '../../lib/utils';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'elevated' | 'bordered' | 'glass';
+  variant?: 'default' | 'elevated' | 'bordered' | 'glass' | 'stats';
   padding?: 'sm' | 'md' | 'lg';
 }
 
@@ -12,13 +12,14 @@ export function Card({
   padding = 'md',
   ...props
 }: CardProps) {
-  const base = 'rounded-2xl transition-all duration-200';
+  const base = 'rounded-xl transition-all duration-200';
 
   const variants: Record<string, string> = {
-    default: 'bg-white border border-[var(--color-border-light)] shadow-[var(--shadow-sm)]',
-    elevated: 'bg-[var(--color-bg-surface)] border border-[var(--color-border-light)] shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)]',
+    default: 'bg-white border border-[var(--color-border-light)] shadow-sm',
+    elevated: 'bg-white border border-[var(--color-border-light)] shadow-sm hover:shadow-md',
     bordered: 'bg-white border-2 border-[var(--color-border-light)]',
     glass: 'glass-card shadow-[var(--shadow-md)]',
+    stats: 'bg-white border border-[var(--color-border-light)] rounded-xl shadow-sm flex flex-col gap-1',
   };
 
   const paddings: Record<string, string> = {

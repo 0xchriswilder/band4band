@@ -19,16 +19,16 @@ import {
   EyeOff,
   Shield,
   CheckCircle2,
+  FileText,
+  Calendar,
 } from 'lucide-react';
-import { Header } from '../components/layout/Header';
-import { Footer } from '../components/layout/Footer';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
 import { useFhevmEncrypt } from '../hooks/useFhevmEncrypt';
-import { useEmployeePaymentHistory } from '../hooks/usePayrollHistory';
+import { useEmployeePaymentHistory, useEmployeeProfile, useSubmitEmployeeInvoice } from '../hooks/usePayrollHistory';
 import { useConfidentialBalance } from '../hooks/useConfidentialBalance';
 import { useWrapToken } from '../hooks/useWrapToken';
 import { useFhevm } from '../providers/useFhevmContext';
@@ -47,7 +47,9 @@ export function EmployeeDashboard() {
   const { decryptHandle } = useFhevmDecrypt();
   const { encryptAmount } = useFhevmEncrypt();
   const { writeContractAsync, isPending: isUnwrapWriting } = useWriteContract();
+  const { employee, isEmployee } = useEmployeeProfile();
   const { payments, total: paymentCount, isLoading, reload } = useEmployeePaymentHistory();
+  const { submit: submitInvoice, isSubmitting: isSubmittingInvoice, error: invoiceError } = useSubmitEmployeeInvoice();
 
   const {
     hasBalance: hasCusdcpBalance,
@@ -74,6 +76,9 @@ export function EmployeeDashboard() {
   const [wrapAmount, setWrapAmount] = useState('');
   const [unwrapAmount, setUnwrapAmount] = useState('');
   const [isUnwrapping, setIsUnwrapping] = useState(false);
+  const [invoiceName, setInvoiceName] = useState('');
+  const [invoiceRole, setInvoiceRole] = useState('');
+  const [invoiceMonth, setInvoiceMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
   const handleDecrypt = async (encrypted: string, key: string) => {
     if (decryptedValues[key] !== undefined) return;
@@ -137,6 +142,7 @@ export function EmployeeDashboard() {
   if (!isConnected) {
     return (
       <ConnectWalletCTA
+        embedded
         icon={UserCircle}
         badge="For Employees & Team Members"
         title="Your Salary,"
@@ -174,22 +180,18 @@ export function EmployeeDashboard() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg-light)]">
-      <Header />
-
-      <main className="flex-1 container mx-auto max-w-6xl px-4 py-8 lg:px-8 space-y-6">
+    <>
         {/* Page Header */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-[var(--color-text-primary)] flex items-center gap-3">
-                <UserCircle className="h-8 w-8 text-[var(--color-primary)]" />
-                Employee Portal
-              </h1>
-              <p className="mt-1 text-[var(--color-text-secondary)]">
-                View your encrypted payments, decrypt amounts, and manage tokens.
-              </p>
-            </div>
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-3xl font-black tracking-tight text-[var(--color-text-primary)]">
+              Employee Portal
+            </h2>
+            <p className="text-[var(--color-text-secondary)] text-sm mt-1">
+              View your encrypted payments, decrypt amounts, and manage tokens.
+            </p>
+          </div>
+          <div>
             {fheReady ? (
               <Badge variant="success" dot size="md">FHE ready</Badge>
             ) : (
@@ -287,6 +289,72 @@ export function EmployeeDashboard() {
             </div>
           </div>
         </motion.div>
+
+        {/* ─── Monthly Invoice (only for onboarded employees) ─── */}
+        {isEmployee && (
+          <motion.div initial="hidden" animate="visible" variants={fadeUp}>
+            <Card variant="elevated" padding="lg">
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-[var(--color-primary)]" />
+                Monthly Invoice
+              </h2>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+                Submit your invoice for the month so your employer can see you are ready for payroll. Name and role are stored for their records; salary amount stays encrypted on-chain.
+              </p>
+              <div className="space-y-4 max-w-md">
+                <Input
+                  label="Full name"
+                  value={invoiceName}
+                  onChange={(e) => setInvoiceName(e.target.value)}
+                  placeholder="Your name"
+                />
+                <Input
+                  label="Job role / title"
+                  value={invoiceRole}
+                  onChange={(e) => setInvoiceRole(e.target.value)}
+                  placeholder="e.g. Software Engineer"
+                />
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">
+                    Month due
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-text-tertiary)]" />
+                    <input
+                      type="month"
+                      value={invoiceMonth}
+                      onChange={(e) => setInvoiceMonth(e.target.value)}
+                      className="w-full rounded-xl border border-[var(--color-border-input)] bg-white pl-10 pr-4 py-2.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
+                    />
+                  </div>
+                </div>
+                {invoiceError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    {invoiceError}
+                  </p>
+                )}
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={async () => {
+                    const ok = await submitInvoice({ name: invoiceName, role: invoiceRole, month_due: invoiceMonth });
+                    if (ok) {
+                      toast.success('Invoice submitted');
+                      setInvoiceName('');
+                      setInvoiceRole('');
+                    } else {
+                      toast.error(invoiceError || 'Submit failed');
+                    }
+                  }}
+                  disabled={isSubmittingInvoice || !invoiceName.trim() || !invoiceRole.trim() || !invoiceMonth}
+                  loading={isSubmittingInvoice}
+                >
+                  <FileText className="h-4 w-4" /> Submit Invoice
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* ─── Token Actions Row ─── */}
         <div className="grid gap-6 md:grid-cols-2">
@@ -560,10 +628,7 @@ export function EmployeeDashboard() {
             </div>
           </div>
         </Card>
-      </main>
-
-      <Footer />
-    </div>
+    </>
   );
 }
 

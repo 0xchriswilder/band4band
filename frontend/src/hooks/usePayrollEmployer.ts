@@ -360,6 +360,32 @@ export function usePayrollEmployer() {
     return hash;
   }, [employer, isConnected, payrollAddress, localEmployees, encryptAmount, writeContractAsync, wagmiPublicClient]);
 
+  /** Pay a single employee using the given amount (USDC string, e.g. "2500.00"). */
+  const payOneSalary = useCallback(
+    async (employeeAddress: string, amountUsdc: string): Promise<`0x${string}` | null> => {
+      if (!employer || !isConnected || !payrollAddress) return null;
+      const amount = (amountUsdc || '').trim();
+      if (!amount || Number(amount) <= 0) {
+        throw new Error('Enter a valid pay amount for this employee');
+      }
+      const parsed = parseAmount(amount, 6);
+      const encrypted = await encryptAmount(parsed, payrollAddress);
+      if (!encrypted?.handles?.[0]) {
+        throw new Error('Failed to encrypt salary');
+      }
+      const hash = await writeContractAsync({
+        address: payrollAddress,
+        abi: PAYROLL_ABI,
+        functionName: 'paySalary',
+        args: [employeeAddress as `0x${string}`, encrypted.handles[0], encrypted.inputProof],
+      });
+      const client = wagmiPublicClient ?? sepoliaClient;
+      await client.waitForTransactionReceipt({ hash });
+      return hash;
+    },
+    [employer, isConnected, payrollAddress, encryptAmount, writeContractAsync, wagmiPublicClient]
+  );
+
   return {
     employer,
     payrollAddress,
@@ -377,6 +403,7 @@ export function usePayrollEmployer() {
     editEmployeeSalary,
     removeEmployeeFromPayroll,
     payAllSalaries,
+    payOneSalary,
     fetchSalaryHandles,
     refetchPayroll: fetchPayrollAddress,
     refetchEmployees: fetchEmployees,

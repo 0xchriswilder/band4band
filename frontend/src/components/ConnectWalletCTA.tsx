@@ -20,6 +20,8 @@ interface ConnectWalletCTAProps {
   subtitle: string;
   features: Feature[];
   highlights?: { icon: LucideIcon; label: string }[];
+  /** When true, omit Header/Footer (e.g. when shown inside AppLayout sidebar) */
+  embedded?: boolean;
 }
 
 const fadeUp = {
@@ -39,13 +41,13 @@ export function ConnectWalletCTA({
   subtitle,
   features,
   highlights,
+  embedded = false,
 }: ConnectWalletCTAProps) {
-  return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg-light)]">
-      <Header />
-
+  const content = (
+    <>
+      {!embedded && <Header />}
       {/* Hero Section */}
-      <section className="relative overflow-hidden flex-1 flex flex-col py-16 lg:py-24">
+      <section className={`relative overflow-hidden flex-1 flex flex-col ${embedded ? 'py-8' : 'py-16 lg:py-24'}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex-1 flex flex-col justify-center">
           {/* Top Section — Icon + Headline + CTA */}
           <div className="text-center max-w-3xl mx-auto mb-16">
@@ -160,8 +162,16 @@ export function ConnectWalletCTA({
           </div>
         </div>
       </section>
+      {!embedded && <Footer />}
+    </>
+  );
 
-      <Footer />
+  if (embedded) {
+    return <div className="flex flex-col">{content}</div>;
+  }
+  return (
+    <div className="min-h-screen flex flex-col bg-[var(--color-bg-light)]">
+      {content}
     </div>
   );
 }

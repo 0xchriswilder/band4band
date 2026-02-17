@@ -20,8 +20,6 @@ import {
   Building2,
   UserCircle,
 } from 'lucide-react';
-import { Header } from '../components/layout/Header';
-import { Footer } from '../components/layout/Footer';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -116,6 +114,7 @@ export function Activity() {
   if (!isConnected) {
     return (
       <ConnectWalletCTA
+        embedded
         icon={BarChart3}
         badge="Transparent & Confidential"
         title="Your Complete Transaction"
@@ -165,8 +164,8 @@ export function Activity() {
     showEmployerCol: boolean,
     role: string,
   ) => (
-    <Card variant="elevated" className="overflow-hidden">
-      <div className="p-6 border-b border-[var(--color-border-light)]">
+    <Card variant="elevated" className="overflow-hidden rounded-xl shadow-sm">
+      <div className="p-6 border-b border-[var(--color-border-light)] bg-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[var(--color-primary)]/10 rounded-xl flex items-center justify-center">
@@ -214,26 +213,26 @@ export function Activity() {
       ) : (
         <>
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Date</th>
-                  {showEmployeeCol && <th className="px-5 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Employee</th>}
-                  {showEmployerCol && <th className="px-5 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Employer</th>}
-                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Contract</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Amount</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Tx Hash</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Block</th>
+            <table className="w-full text-left">
+              <thead className="bg-[var(--color-bg-light)]/50 border-b border-[var(--color-border-light)]">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Date</th>
+                  {showEmployeeCol && <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Employee</th>}
+                  {showEmployerCol && <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Employer</th>}
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Contract</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Amount</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Tx Hash</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Block</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[var(--color-border-light)]">
                 {payments.map((p) => {
                   const decryptKey = `${p.tx_hash}-${p.employee}`;
                   const isPaymentDecrypted = decryptedAmounts[decryptKey] !== undefined;
 
                   return (
-                    <tr key={decryptKey} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-5 py-3.5 text-sm text-[var(--color-text-secondary)]">
+                    <tr key={decryptKey} className="hover:bg-[var(--color-primary)]/5 transition-colors">
+                      <td className="px-6 py-5 text-sm font-medium text-[var(--color-text-primary)]">
                         {new Date(p.timestamp).toLocaleDateString(undefined, {
                           year: 'numeric',
                           month: 'short',
@@ -241,25 +240,25 @@ export function Activity() {
                         })}
                       </td>
                       {showEmployeeCol && (
-                        <td className="px-5 py-3.5">
+                        <td className="px-6 py-5">
                           <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
                             {formatAddress(p.employee, 6)}
                           </span>
                         </td>
                       )}
                       {showEmployerCol && (
-                        <td className="px-5 py-3.5">
+                        <td className="px-6 py-5">
                           <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
                             {formatAddress(p.employer, 6)}
                           </span>
                         </td>
                       )}
-                      <td className="px-5 py-3.5">
+                      <td className="px-6 py-5">
                         <span className="text-sm font-mono text-[var(--color-text-secondary)]">
                           {formatAddress(p.payroll_address, 4)}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-6 py-5">
                         {isPaymentDecrypted ? (
                           <span className="text-sm font-bold text-emerald-600">
                             {formatAmount(decryptedAmounts[decryptKey], TOKEN_CONFIG.decimals)}
@@ -282,7 +281,7 @@ export function Activity() {
                           </Badge>
                         )}
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-6 py-5">
                         <a
                           href={`https://sepolia.etherscan.io/tx/${p.tx_hash}`}
                           target="_blank"
@@ -321,11 +320,8 @@ export function Activity() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg-light)]">
-      <Header />
-
-      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl py-8">
-        {/* Back Button */}
+    <>
+      {/* Back Button */}
         <motion.button
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
@@ -337,12 +333,15 @@ export function Activity() {
         </motion.button>
 
         {/* Page Header */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-[var(--color-text-primary)] mb-2 flex items-center gap-3">
-            <BarChart3 className="h-8 w-8 text-[var(--color-primary)]" />
-            Activity
-          </h1>
-          <p className="text-[var(--color-text-secondary)]">Complete audit trail of all your payroll transactions.</p>
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex flex-col gap-1 md:flex-row md:justify-between md:items-end">
+          <div>
+            <h2 className="text-3xl font-black tracking-tight text-[var(--color-text-primary)]">
+              Transaction History
+            </h2>
+            <p className="text-[var(--color-text-secondary)] text-sm mt-1">
+              Audit and monitor past encrypted payroll distributions via Zama privacy protocol.
+            </p>
+          </div>
         </motion.div>
 
         {/* ─── Employee Section ─── */}
@@ -382,17 +381,12 @@ export function Activity() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="grid grid-cols-3 gap-4 mb-6"
+              className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"
             >
-              <Card variant="elevated" padding="md" className="hover:shadow-lg transition-shadow">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[var(--color-primary)]/10 rounded-xl flex items-center justify-center">
-                    <DollarSign className="w-5 h-5 text-[var(--color-primary)]" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-[var(--color-text-primary)]">{employeeTotal}</p>
-                    <p className="text-xs text-[var(--color-text-secondary)]">Payments Received</p>
-                  </div>
+              <Card variant="stats">
+                <p className="text-[var(--color-text-secondary)] text-xs font-bold uppercase tracking-wider">Payments Received</p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black text-[var(--color-text-primary)]">{employeeTotal}</span>
                 </div>
               </Card>
               <Card variant="elevated" padding="md" className="hover:shadow-lg transition-shadow">
@@ -593,10 +587,7 @@ export function Activity() {
             </Card>
           </motion.div>
         )}
-      </main>
-
-      <Footer />
-    </div>
+    </>
   );
 }
 

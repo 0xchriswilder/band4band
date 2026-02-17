@@ -49,3 +49,24 @@ export interface IndexerMetaRow {
   key: string;
   value: string;
 }
+
+export interface EmployeeInvoiceData {
+  name: string;
+  role: string;
+}
+
+export interface EmployeeInvoiceRow {
+  id: number;
+  employee_address: string;
+  employer_address: string;
+  month_due: string;
+  data: EmployeeInvoiceData;
+  created_at: string;
+}
+
+export interface EmployeeDisplayNameRow {
+  employer_address: string;
+  employee_address: string;
+  name: string;
+  updated_at: string;
+}

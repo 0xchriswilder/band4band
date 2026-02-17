@@ -32,9 +32,8 @@ import {
   Pencil,
   Trash2,
   X,
+  FileText,
 } from 'lucide-react';
-import { Header } from '../components/layout/Header';
-import { Footer } from '../components/layout/Footer';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -47,6 +46,7 @@ import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
 import { formatAddress, formatAmount, parseAmount } from '../lib/utils';
 import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
+import { useEmployerInvoices, useEmployerLatestPaymentHandles, useEmployerEmployeeNames } from '../hooks/usePayrollHistory';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -70,7 +70,7 @@ export function EmployerDashboard() {
     editEmployeeSalary,
     removeEmployeeFromPayroll,
     payAllSalaries,
-    fetchSalaryHandles,
+    payOneSalary,
     refetchPayroll,
     refetchEmployees,
   } = usePayrollEmployer();
@@ -95,7 +95,7 @@ export function EmployerDashboard() {
   } = useConfidentialBalance();
 
   const { encryptAmount } = useFhevmEncrypt();
-  const { decryptHandle, isDecrypting: isDecryptingSalary } = useFhevmDecrypt();
+  const { decryptHandle } = useFhevmDecrypt();
   const { writeContractAsync, isPending: isUnwrapWriting } = useWriteContract();
 
   const [showBalance, setShowBalance] = useState(false);
@@ -104,14 +104,18 @@ export function EmployerDashboard() {
   const [isUnwrapping, setIsUnwrapping] = useState(false);
   const [paySalaries, setPaySalaries] = useState<Record<string, string>>({});
   const [employeeAddress, setEmployeeAddress] = useState('');
+  const [employeeName, setEmployeeName] = useState('');
   const [salary, setSalary] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importCount, setImportCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual');
 
-  // Employer salary decrypt state
-  const [salaryHandles, setSalaryHandles] = useState<Record<string, string>>({});
+  // Employer salary decrypt state (handles from Supabase; decrypt with CONF_TOKEN like Activity/Employee)
   const [decryptedSalaries, setDecryptedSalaries] = useState<Record<string, bigint>>({});
+  const [decryptingEmployee, setDecryptingEmployee] = useState<string | null>(null);
+
+  // Per-row pay (single employee)
+  const [payingEmployee, setPayingEmployee] = useState<string | null>(null);
 
   // Edit salary modal
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
@@ -119,20 +123,23 @@ export function EmployerDashboard() {
 
   // Payroll confirmation modal
   const [showPayrollConfirm, setShowPayrollConfirm] = useState(false);
-
-  // Load salary handles when payroll is ready
-  useEffect(() => {
-    if (hasPayroll && payrollAddress) {
-      fetchSalaryHandles().then(setSalaryHandles);
-    }
-  }, [hasPayroll, payrollAddress, fetchSalaryHandles]);
+  // Invoice month filter (YYYY-MM)
+  const [invoiceMonth, setInvoiceMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const { invoicedAddresses } = useEmployerInvoices(invoiceMonth);
+  const { handles: salaryHandles, reload: reloadPaymentHandles } = useEmployerLatestPaymentHandles();
+  const { names: employeeNames, upsertName: upsertEmployeeName, reload: reloadEmployeeNames } = useEmployerEmployeeNames();
 
   const handleFileImport = async (file: File) => {
     setIsImporting(true);
     setImportCount(0);
     try {
       const ext = file.name.toLowerCase().split('.').pop();
-      const rows: { address: string; salary: string }[] = [];
+      const rows: { address: string; salary: string; name?: string }[] = [];
+
+      const getName = (row: Record<string, unknown>) => {
+        const v = row.name ?? row.employee_name ?? row.Name ?? row.EmployeeName ?? '';
+        return typeof v === 'string' ? v.trim() : String(v ?? '').trim();
+      };
 
       if (ext === 'csv') {
         const parsed = await new Promise<{ data: Array<Record<string, string>> }>((resolve, reject) => {
@@ -144,8 +151,11 @@ export function EmployerDashboard() {
           });
         });
         for (const row of parsed.data) {
-          if (row.address && row.salary) {
-            rows.push({ address: row.address.trim(), salary: String(row.salary).trim() });
+          const address = row.address ?? row.Address ?? '';
+          const salary = row.salary ?? row.Salary ?? '';
+          if (address && salary) {
+            const name = (row.name ?? row.employee_name ?? row.Name ?? row.EmployeeName ?? '').trim();
+            rows.push({ address: address.trim(), salary: String(salary).trim(), ...(name ? { name } : {}) });
           }
         }
       } else if (ext === 'xlsx' || ext === 'xls') {
@@ -155,15 +165,22 @@ export function EmployerDashboard() {
         const sheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
         for (const row of json) {
-          if (row.address && row.salary) {
-            rows.push({ address: String(row.address).trim(), salary: String(row.salary).trim() });
+          const address = row.address ?? row.Address;
+          const salary = row.salary ?? row.Salary;
+          if (address && salary) {
+            const name = getName(row);
+            rows.push({ address: String(address).trim(), salary: String(salary).trim(), ...(name ? { name } : {}) });
           }
         }
       }
 
       if (rows.length > 0) {
         setImportCount(rows.length);
-        await batchOnboardEmployees(rows);
+        await batchOnboardEmployees(rows.map(({ address, salary }) => ({ address, salary })));
+        for (const r of rows) {
+          if (r.name) await upsertEmployeeName(r.address, r.name).catch(() => {});
+        }
+        reloadEmployeeNames();
         toast.success(`${rows.length} employee(s) onboarded successfully`);
       }
     } catch (err: any) {
@@ -177,8 +194,12 @@ export function EmployerDashboard() {
     if (!employeeAddress || !salary) return;
     try {
       await onboardEmployee(employeeAddress, salary);
+      if (employeeName.trim()) {
+        await upsertEmployeeName(employeeAddress, employeeName.trim());
+      }
       toast.success('Employee onboarded successfully');
       setEmployeeAddress('');
+      setEmployeeName('');
       setSalary('');
     } catch (err: any) {
       toast.error(err?.message || 'Onboard failed');
@@ -208,18 +229,23 @@ export function EmployerDashboard() {
 
   const handleDecryptSalary = async (employeeAddr: string) => {
     const handle = salaryHandles[employeeAddr.toLowerCase()];
-    if (!handle || !payrollAddress) {
-      toast.error('No salary handle found for this employee');
+    if (!handle) {
+      toast.error('No payment record found for this employee');
       return;
     }
+    setDecryptingEmployee(employeeAddr);
     try {
-      const value = await decryptHandle(handle, payrollAddress);
+      const value = await decryptHandle(handle, CONTRACTS.CONF_TOKEN);
       if (value !== null) {
-        setDecryptedSalaries((prev) => ({ ...prev, [employeeAddr.toLowerCase()]: value }));
-        toast.success('Salary decrypted');
+        const addrLower = employeeAddr.toLowerCase();
+        setDecryptedSalaries((prev) => ({ ...prev, [addrLower]: value }));
+        setPaySalaries((prev) => ({ ...prev, [employeeAddr]: formatAmount(value, TOKEN_CONFIG.decimals) }));
+        toast.success('Salary decrypted — pay amount updated');
       }
     } catch (err: any) {
       toast.error(err?.message || 'Decrypt failed');
+    } finally {
+      setDecryptingEmployee(null);
     }
   };
 
@@ -246,8 +272,7 @@ export function EmployerDashboard() {
       }));
       await payAllSalaries(updatedEmployees);
       toast.success('Payroll executed successfully');
-      // Refresh salary handles after payment
-      fetchSalaryHandles().then(setSalaryHandles);
+      reloadPaymentHandles();
     } catch (err: any) {
       toast.error(err?.message || 'Payroll failed');
     }
@@ -261,6 +286,7 @@ export function EmployerDashboard() {
   if (!isConnected) {
     return (
       <ConnectWalletCTA
+        embedded
         icon={Building2}
         badge="For Institutions & Companies"
         title="Launch Your Confidential"
@@ -298,22 +324,18 @@ export function EmployerDashboard() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg-light)]">
-      <Header />
-
-      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl py-8">
+    <>
         {/* Page Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8"
+          className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between mb-8"
         >
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-[var(--color-text-primary)] mb-2 flex items-center gap-3">
-              <Building2 className="h-8 w-8 text-[var(--color-primary)]" />
+            <h2 className="text-3xl font-black tracking-tight text-[var(--color-text-primary)]">
               Employer Dashboard
-            </h1>
-            <p className="text-[var(--color-text-secondary)]">Manage payroll, onboard employees, and execute confidential payments.</p>
+            </h2>
+            <p className="text-[var(--color-text-secondary)] text-sm mt-1">Manage payroll, onboard employees, and execute confidential payments.</p>
           </div>
           <div className="flex items-center gap-3">
             {hasPayroll && (
@@ -414,67 +436,61 @@ export function EmployerDashboard() {
               </motion.div>
             )}
 
-            {/* Wrap / Shield */}
-            <motion.div initial="hidden" animate="visible" variants={fadeUp}>
-              <Card variant="elevated" padding="lg">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5 text-emerald-600" /> Wrap / Shield Tokens
+            {/* Wrap + Unwrap — side-by-side to save space */}
+            <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card variant="elevated" padding="lg" className="flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600" /> Wrap / Shield
                   </h2>
-                  <Badge variant="info" size="sm">{TOKEN_CONFIG.underlyingSymbol} &rarr; {TOKEN_CONFIG.symbol}</Badge>
+                  <Badge variant="info" size="sm">{TOKEN_CONFIG.underlyingSymbol} → {TOKEN_CONFIG.symbol}</Badge>
                 </div>
-                <p className="text-sm text-[var(--color-text-secondary)] mb-4">Convert {TOKEN_CONFIG.underlyingSymbol} into confidential {TOKEN_CONFIG.symbol} tokens to fund payroll.</p>
-                <div className="grid gap-4 sm:grid-cols-[1fr,auto,1fr] items-center mb-6">
-                  <div className="p-4 rounded-xl bg-gray-50 border border-[var(--color-border-light)]">
-                    <div className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">{TOKEN_CONFIG.underlyingSymbol} Balance</div>
-                    <div className="text-xl font-bold text-[var(--color-text-primary)]">{Number(usdcBalanceFormatted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<span className="text-sm font-normal text-[var(--color-text-tertiary)] ml-1">{TOKEN_CONFIG.underlyingSymbol}</span></div>
+                <p className="text-xs text-[var(--color-text-secondary)] mb-4">Convert {TOKEN_CONFIG.underlyingSymbol} into confidential {TOKEN_CONFIG.symbol} to fund payroll.</p>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="p-3 rounded-xl bg-gray-50 border border-[var(--color-border-light)]">
+                    <div className="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide">{TOKEN_CONFIG.underlyingSymbol}</div>
+                    <div className="text-lg font-bold text-[var(--color-text-primary)] truncate">{Number(usdcBalanceFormatted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                   </div>
-                  <div className="hidden sm:flex items-center justify-center"><ArrowRight className="h-5 w-5 text-gray-300" /></div>
-                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-                    <div className="text-xs font-medium text-emerald-700 uppercase tracking-wide mb-1">{TOKEN_CONFIG.symbol} Balance</div>
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <div className="text-[10px] font-medium text-emerald-700 uppercase tracking-wide">{TOKEN_CONFIG.symbol}</div>
                     {cusdcpDecrypted && cusdcpBalance !== null ? (
-                      <div className="text-xl font-bold text-emerald-700">{formatAmount(cusdcpBalance, TOKEN_CONFIG.decimals)}<span className="text-sm font-normal text-emerald-600 ml-1">{TOKEN_CONFIG.symbol}</span></div>
+                      <div className="text-lg font-bold text-emerald-700 truncate">{formatAmount(cusdcpBalance, TOKEN_CONFIG.decimals)}</div>
                     ) : hasCusdcpBalance ? (
-                      <div className="flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-emerald-600" />
-                        <span className="text-sm text-emerald-700 font-medium">Encrypted</span>
-                        <Button variant="secondary" size="sm" onClick={() => decryptCusdcpBalance()} disabled={cusdcpDecrypting || !fheReady} loading={cusdcpDecrypting}><Unlock className="h-3 w-3" /> Reveal</Button>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Lock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <Button variant="secondary" size="sm" onClick={() => decryptCusdcpBalance()} disabled={cusdcpDecrypting || !fheReady} loading={cusdcpDecrypting} className="!py-1 !text-xs"><Unlock className="h-3 w-3" /> Reveal</Button>
                       </div>
                     ) : (
-                      <div className="text-xl font-bold text-emerald-700">0.00<span className="text-sm font-normal text-emerald-600 ml-1">{TOKEN_CONFIG.symbol}</span></div>
+                      <div className="text-lg font-bold text-emerald-700">0.00</div>
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-auto">
                   <div className="relative flex-1">
-                    <Input type="number" placeholder="0.00" step="0.01" min="0" value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} />
+                    <Input type="number" placeholder="0.00" step="0.01" min="0" value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} className="text-sm" />
                     <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setWrapAmount(usdcBalanceFormatted)}>MAX</button>
                   </div>
-                  <Button size="md" onClick={async () => { if (!wrapAmount || Number(wrapAmount) <= 0) return; try { await wrapUsdc(wrapAmount); toast.success('Tokens wrapped!'); setWrapAmount(''); refetchBalances(); refetchCusdcpBalance(); } catch (err: any) { toast.error(err?.message || 'Wrap failed'); }}} disabled={!isConnected || isWrapping || !wrapAmount || Number(wrapAmount) <= 0 || usdcBalance === 0n} loading={isWrapping}>
+                  <Button size="sm" onClick={async () => { if (!wrapAmount || Number(wrapAmount) <= 0) return; try { await wrapUsdc(wrapAmount); toast.success('Tokens wrapped!'); setWrapAmount(''); refetchBalances(); refetchCusdcpBalance(); } catch (err: any) { toast.error(err?.message || 'Wrap failed'); }}} disabled={!isConnected || isWrapping || !wrapAmount || Number(wrapAmount) <= 0 || usdcBalance === 0n} loading={isWrapping}>
                     <ShieldCheck className="h-4 w-4" /> {wrapAmount && needsApproval(wrapAmount) ? 'Approve & Wrap' : 'Wrap'}
                   </Button>
                 </div>
               </Card>
-            </motion.div>
-
-            {/* Unwrap / Unshield */}
-            <motion.div initial="hidden" animate="visible" variants={fadeUp}>
-              <Card variant="elevated" padding="lg">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-                    <ShieldOff className="h-5 w-5 text-orange-500" /> Unwrap / Unshield Tokens
+              <Card variant="elevated" padding="lg" className="flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <ShieldOff className="h-5 w-5 text-orange-500" /> Unwrap / Unshield
                   </h2>
-                  <Badge variant="warning" size="sm">{TOKEN_CONFIG.symbol} &rarr; {TOKEN_CONFIG.underlyingSymbol}</Badge>
+                  <Badge variant="warning" size="sm">{TOKEN_CONFIG.symbol} → {TOKEN_CONFIG.underlyingSymbol}</Badge>
                 </div>
-                <p className="text-sm text-[var(--color-text-secondary)] mb-4">Convert confidential {TOKEN_CONFIG.symbol} back to {TOKEN_CONFIG.underlyingSymbol}. Async via Zama gateway.</p>
-                <div className="flex gap-2">
+                <p className="text-xs text-[var(--color-text-secondary)] mb-4">Convert confidential {TOKEN_CONFIG.symbol} back to {TOKEN_CONFIG.underlyingSymbol}. Async via Zama gateway.</p>
+                <div className="flex gap-2 mt-auto">
                   <div className="relative flex-1">
-                    <Input type="number" placeholder="0.00" step="0.01" min="0" value={unwrapAmount} onChange={(e) => setUnwrapAmount(e.target.value)} />
+                    <Input type="number" placeholder="0.00" step="0.01" min="0" value={unwrapAmount} onChange={(e) => setUnwrapAmount(e.target.value)} className="text-sm" />
                     {cusdcpDecrypted && cusdcpBalance !== null && cusdcpBalance > 0n && (
                       <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setUnwrapAmount(formatAmount(cusdcpBalance, TOKEN_CONFIG.decimals))}>MAX</button>
                     )}
                   </div>
-                  <Button size="md" variant="secondary" onClick={async () => {
+                  <Button size="sm" variant="secondary" onClick={async () => {
                     if (!address || !unwrapAmount || Number(unwrapAmount) <= 0) return;
                     setIsUnwrapping(true);
                     try {
@@ -505,6 +521,7 @@ export function EmployerDashboard() {
                 <AnimatePresence mode="wait">
                   {activeTab === 'manual' ? (
                     <motion.div key="manual" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
+                      <Input label="Employee Name" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="e.g. Jane Doe" hint="Optional but recommended for identifying workers." icon={<Users className="h-4 w-4" />} />
                       <Input label="Employee Wallet Address" value={employeeAddress} onChange={(e) => setEmployeeAddress(e.target.value)} placeholder="0x..." icon={<Hash className="h-4 w-4" />} />
                       <Input label={`Monthly Salary (${TOKEN_CONFIG.underlyingSymbol})`} value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="2500.00" hint="Amount in USDC (6 decimals). Will be encrypted before submitting." icon={<DollarSign className="h-4 w-4" />} />
                       <Button className="w-full" onClick={handleOnboard} disabled={!hasPayroll || isWriting || isEncrypting || !employeeAddress || !salary} loading={isEncrypting || isWriting}>
@@ -516,7 +533,7 @@ export function EmployerDashboard() {
                       <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-[var(--color-primary-light)] transition-colors">
                         <FileSpreadsheet className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                         <p className="text-sm font-medium text-[var(--color-text-primary)] mb-1">Drop a CSV or XLSX file</p>
-                        <p className="text-xs text-[var(--color-text-tertiary)] mb-4">Required columns: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">address</code>, <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">salary</code></p>
+                        <p className="text-xs text-[var(--color-text-tertiary)] mb-4">Required: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">address</code>, <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">salary</code>. Optional: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">name</code> (or <code className="bg-gray-100 px-1.5 py-0.5 rounded">employee_name</code>)</p>
                         <label>
                           <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file && hasPayroll && !isWriting && !isEncrypting) void handleFileImport(file); }} />
                           <Button variant="secondary" size="sm" onClick={() => {}} className="pointer-events-none"><Upload className="h-4 w-4" /> Choose file</Button>
@@ -534,42 +551,105 @@ export function EmployerDashboard() {
               </Card>
             </motion.div>
 
-            {/* Employee List + Run Payroll */}
-            <motion.div initial="hidden" animate="visible" variants={fadeUp}>
-              <Card variant="elevated" padding="lg">
-                <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-                    <Users className="h-5 w-5 text-[var(--color-primary)]" /> Employees
-                    {localEmployees.length > 0 && <Badge variant="primary" size="sm">{localEmployees.length}</Badge>}
-                  </h2>
+          </div>
+
+          {/* Sidebar — Overview + Quick Actions in one card */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }} className="space-y-4">
+            <Card variant="elevated" padding="md" className="overflow-hidden">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--color-border-light)]">
+                <BarChart3 className="h-4 w-4 text-[var(--color-primary)]" />
+                <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Overview &amp; Actions</h3>
+              </div>
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0"><Wallet className="w-4 h-4 text-blue-600" /></div>
+                  <div className="min-w-0 flex-1"><p className="text-[10px] text-[var(--color-text-tertiary)] uppercase font-semibold">Wallet</p><p className="text-xs font-bold text-[var(--color-text-primary)] truncate">{isConnected && address ? formatAddress(address, 6) : 'Not connected'}</p></div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${hasPayroll ? 'bg-emerald-50' : 'bg-amber-50'}`}>{hasPayroll ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-amber-600" />}</div>
+                  <div className="min-w-0 flex-1"><p className="text-[10px] text-[var(--color-text-tertiary)] uppercase font-semibold">Contract</p><p className="text-xs font-bold text-[var(--color-text-primary)] truncate">{hasPayroll && payrollAddress ? formatAddress(payrollAddress, 6) : '—'}</p></div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center shrink-0"><Users className="w-4 h-4 text-purple-600" /></div>
+                  <div className="min-w-0 flex-1"><p className="text-[10px] text-[var(--color-text-tertiary)] uppercase font-semibold">Employees</p><p className="text-xs font-bold text-[var(--color-text-primary)]">{onchainEmployees.length || localEmployees.length}</p></div>
+                </div>
+              </div>
+              <div className="space-y-1.5 pt-2 border-t border-[var(--color-border-light)]">
+                <Link to="/activity" className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[var(--color-bg-light)] transition-colors group">
+                  <BarChart3 className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-primary)]" />
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">Payment History</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-300 ml-auto group-hover:text-[var(--color-primary)]" />
+                </Link>
+                <Link to="/employee" className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[var(--color-bg-light)] transition-colors group">
+                  <Users className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-primary)]" />
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">Employee Portal</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-300 ml-auto group-hover:text-[var(--color-primary)]" />
+                </Link>
+              </div>
+            </Card>
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100/50 p-4">
+              <div className="flex items-start gap-3">
+                <Shield className="w-8 h-8 text-[var(--color-primary)] shrink-0 opacity-80" />
+                <div>
+                  <h3 className="text-xs font-bold text-[var(--color-text-primary)] mb-0.5">Payroll Privacy</h3>
+                  <p className="text-[11px] text-[var(--color-text-secondary)] leading-snug">Salaries are FHE-encrypted. Only you and each employee can decrypt.</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Employees table — full width row for more space, no horizontal scroll */}
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mt-6">
+          <Card variant="elevated" padding="lg">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                <Users className="h-5 w-5 text-[var(--color-primary)]" /> Employees
+                {localEmployees.length > 0 && <Badge variant="primary" size="sm">{localEmployees.length}</Badge>}
+              </h2>
+              <div className="flex items-center gap-2">
+                {hasPayroll && !isOperatorSet && (
+                  <Button variant="secondary" size="sm" onClick={async () => { try { await approvePayrollOperator(); toast.success('Payroll operator approved!'); } catch (err: any) { toast.error(err?.message || 'Approval failed'); }}} disabled={isWriting} loading={isWriting}>
+                    <CheckCircle2 className="h-4 w-4" /> Approve Payroll
+                  </Button>
+                )}
+                <Button size="sm" onClick={() => setShowPayrollConfirm(true)} disabled={!hasPayroll || !isOperatorSet || localEmployees.length === 0 || isWriting || isEncrypting} loading={isEncrypting && localEmployees.length > 0} title={!isOperatorSet ? 'Click "Approve Payroll" first' : ''}>
+                  <Play className="h-4 w-4" /> Run Payroll
+                </Button>
+              </div>
+            </div>
+
+            {onchainEmployees.length === 0 && localEmployees.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 mb-4"><Users className="h-8 w-8 text-gray-300" /></div>
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No employees yet</h3>
+                <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">Add employees manually or import from a spreadsheet to get started.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <p className="text-xs text-[var(--color-text-secondary)]">Enter the salary amount for each employee before running payroll. Click the lock icon to decrypt on-chain salary (uses latest payment from history).</p>
                   <div className="flex items-center gap-2">
-                    {hasPayroll && !isOperatorSet && (
-                      <Button variant="secondary" size="sm" onClick={async () => { try { await approvePayrollOperator(); toast.success('Payroll operator approved!'); } catch (err: any) { toast.error(err?.message || 'Approval failed'); }}} disabled={isWriting} loading={isWriting}>
-                        <CheckCircle2 className="h-4 w-4" /> Approve Payroll
-                      </Button>
-                    )}
-                    <Button size="sm" onClick={() => setShowPayrollConfirm(true)} disabled={!hasPayroll || !isOperatorSet || localEmployees.length === 0 || isWriting || isEncrypting} loading={isEncrypting && localEmployees.length > 0} title={!isOperatorSet ? 'Click "Approve Payroll" first' : ''}>
-                      <Play className="h-4 w-4" /> Run Payroll
-                    </Button>
+                    <label className="text-xs font-medium text-[var(--color-text-tertiary)]">Invoice month:</label>
+                    <input
+                      type="month"
+                      value={invoiceMonth}
+                      onChange={(e) => setInvoiceMonth(e.target.value)}
+                      className="rounded-lg border border-[var(--color-border-input)] bg-white px-2 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
+                    />
+                    <Link to="/employer/invoices" className="text-xs font-medium text-[var(--color-primary)] hover:underline flex items-center gap-1">
+                      <FileText className="h-3.5 w-3.5" /> View all invoices
+                    </Link>
                   </div>
                 </div>
-
-                {onchainEmployees.length === 0 && localEmployees.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 mb-4"><Users className="h-8 w-8 text-gray-300" /></div>
-                    <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No employees yet</h3>
-                    <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">Add employees manually or import from a spreadsheet to get started.</p>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-xs text-[var(--color-text-secondary)] mb-3">Enter the salary amount for each employee before running payroll. Click the lock icon to decrypt on-chain salary.</p>
-                    <div className="overflow-hidden rounded-xl border border-gray-200">
-                      <div className="overflow-x-auto custom-scrollbar">
-                        <table className="min-w-full">
+                <div className="rounded-xl border border-gray-200">
+                  <table className="w-full">
                           <thead>
                             <tr className="bg-gray-50">
                               <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">#</th>
+                              <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Name</th>
                               <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Address</th>
+                              <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider w-20">Invoice</th>
                               <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">On-chain Salary</th>
                               <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Pay Amount ({TOKEN_CONFIG.underlyingSymbol})</th>
                               <th className="px-4 py-3 text-right text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Actions</th>
@@ -580,12 +660,25 @@ export function EmployerDashboard() {
                               const addrLower = e.address.toLowerCase();
                               const hasHandle = !!salaryHandles[addrLower];
                               const isDecrypted = addrLower in decryptedSalaries;
+                              const hasInvoice = invoicedAddresses.has(addrLower);
 
                               return (
                                 <tr key={`${e.address}-${i}`} className="hover:bg-[#f4eee6]/50 transition-colors">
                                   <td className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">{i + 1}</td>
                                   <td className="px-4 py-3">
+                                    <span className="text-sm font-medium text-[var(--color-text-primary)]">{employeeNames[addrLower] || '—'}</span>
+                                  </td>
+                                  <td className="px-4 py-3">
                                     <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">{formatAddress(e.address, 6)}</span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {hasInvoice ? (
+                                      <span className="inline-flex items-center gap-1 text-emerald-600" title="Invoice submitted for this month">
+                                        <CheckCircle2 className="h-5 w-5" />
+                                      </span>
+                                    ) : (
+                                      <span className="text-[var(--color-text-tertiary)] text-xs">—</span>
+                                    )}
                                   </td>
                                   <td className="px-4 py-3">
                                     {isDecrypted ? (
@@ -593,7 +686,7 @@ export function EmployerDashboard() {
                                         {formatAmount(decryptedSalaries[addrLower], TOKEN_CONFIG.decimals)} <span className="text-xs font-normal text-[var(--color-text-tertiary)]">{TOKEN_CONFIG.symbol}</span>
                                       </span>
                                     ) : hasHandle ? (
-                                      <Button variant="ghost" size="sm" onClick={() => handleDecryptSalary(e.address)} disabled={isDecryptingSalary} loading={isDecryptingSalary}>
+                                      <Button variant="ghost" size="sm" onClick={() => handleDecryptSalary(e.address)} disabled={decryptingEmployee !== null} loading={decryptingEmployee === e.address}>
                                         <Lock className="h-3 w-3" /> Decrypt
                                       </Button>
                                     ) : (
@@ -605,6 +698,29 @@ export function EmployerDashboard() {
                                   </td>
                                   <td className="px-4 py-3 text-right">
                                     <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        title="Pay this employee"
+                                        disabled={!(paySalaries[e.address] ?? e.salary) || Number(paySalaries[e.address] ?? e.salary) <= 0 || !!payingEmployee || isWriting || isEncrypting}
+                                        loading={payingEmployee === e.address}
+                                        onClick={async () => {
+                                          const amt = paySalaries[e.address] ?? e.salary;
+                                          if (!amt || Number(amt) <= 0) return;
+                                          setPayingEmployee(e.address);
+                                          try {
+                                            await payOneSalary(e.address, amt);
+                                            toast.success(`Paid ${formatAddress(e.address, 4)}`);
+                                            reloadPaymentHandles();
+                                          } catch (err: any) {
+                                            toast.error(err?.message ?? 'Payment failed');
+                                          } finally {
+                                            setPayingEmployee(null);
+                                          }
+                                        }}
+                                      >
+                                        <DollarSign className="h-3.5 w-3.5" /> Pay
+                                      </Button>
                                       <Button variant="ghost" size="sm" title="Edit salary" onClick={() => { setEditingEmployee(e.address); setEditSalaryValue(''); }}>
                                         <Pencil className="h-3.5 w-3.5" />
                                       </Button>
@@ -618,78 +734,11 @@ export function EmployerDashboard() {
                             })}
                           </tbody>
                         </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </Card>
-            </motion.div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
-              <Card variant="elevated" padding="md">
-                <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-4 flex items-center gap-2"><BarChart3 className="h-4 w-4 text-[var(--color-primary)]" /> Overview</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center"><Wallet className="w-5 h-5 text-blue-600" /></div>
-                    <div className="flex-1 min-w-0"><p className="text-xs text-[var(--color-text-tertiary)]">Wallet</p><p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{isConnected && address ? formatAddress(address, 6) : 'Not connected'}</p></div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${hasPayroll ? 'bg-emerald-50' : 'bg-amber-50'}`}>
-                      {hasPayroll ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <AlertCircle className="w-5 h-5 text-amber-600" />}
-                    </div>
-                    <div className="flex-1 min-w-0"><p className="text-xs text-[var(--color-text-tertiary)]">Contract</p><p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{hasPayroll && payrollAddress ? formatAddress(payrollAddress, 6) : 'Not deployed'}</p></div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center"><Users className="w-5 h-5 text-purple-600" /></div>
-                    <div className="flex-1 min-w-0"><p className="text-xs text-[var(--color-text-tertiary)]">Employees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{onchainEmployees.length || localEmployees.length}</p></div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center"><DollarSign className="w-5 h-5 text-[var(--color-primary)]" /></div>
-                    <div className="flex-1 min-w-0"><p className="text-xs text-[var(--color-text-tertiary)]">Currency</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{TOKEN_CONFIG.symbol}</p></div>
-                  </div>
                 </div>
-              </Card>
-            </motion.div>
-
-            {/* Quick Actions */}
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-              <Card variant="elevated" className="overflow-hidden">
-                <div className="p-5 border-b border-[var(--color-border-light)]"><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Quick Actions</h3></div>
-                <div className="p-3">
-                  {[{ to: '/activity', icon: BarChart3, title: 'Payment History' }, { to: '/employee', icon: Users, title: 'Employee Portal' }].map((action) => (
-                    <Link key={action.to} to={action.to} className="block">
-                      <div className="flex items-center gap-4 p-3 rounded-xl hover:bg-[#f4eee6] transition-colors group">
-                        <div className="w-10 h-10 bg-gradient-to-br from-[var(--color-primary)] to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-[var(--color-primary)]/20 group-hover:scale-105 transition-transform"><action.icon className="w-5 h-5 text-white" /></div>
-                        <span className="font-medium text-[var(--color-text-primary)] text-sm">{action.title}</span>
-                        <ArrowUpRight className="w-4 h-4 text-gray-300 ml-auto group-hover:text-[var(--color-primary)] transition-colors" />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </Card>
-            </motion.div>
-
-            {/* Privacy Info */}
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50 border border-orange-100/50">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[var(--color-primary)]/20 to-transparent rounded-full blur-2xl" />
-                <div className="relative p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[var(--color-primary)] to-amber-500 rounded-xl flex items-center justify-center shadow-lg"><Shield className="w-6 h-6 text-white" /></div>
-                    <div>
-                      <h3 className="font-bold text-[var(--color-text-primary)] mb-1">Payroll Privacy</h3>
-                      <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">All salary amounts are encrypted using FHE. Only you and the respective employee can decrypt each salary.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </main>
+              </>
+            )}
+          </Card>
+        </motion.div>
 
       {/* Edit Salary Modal */}
       <AnimatePresence>
@@ -729,7 +778,10 @@ export function EmployerDashboard() {
                   <tbody className="divide-y divide-gray-100">
                     {payableEmployees.map((e) => (
                       <tr key={e.address}>
-                        <td className="px-4 py-2 text-sm font-mono text-[var(--color-text-primary)]">{formatAddress(e.address, 6)}</td>
+                        <td className="px-4 py-2 text-sm text-[var(--color-text-primary)]">
+                          {employeeNames[e.address.toLowerCase()] ? <span className="font-medium">{employeeNames[e.address.toLowerCase()]}</span> : null}
+                          <span className={employeeNames[e.address.toLowerCase()] ? 'font-mono text-[var(--color-text-tertiary)] text-xs ml-1' : 'font-mono'}>{formatAddress(e.address, 6)}</span>
+                        </td>
                         <td className="px-4 py-2 text-sm font-bold text-[var(--color-text-primary)] text-right">{paySalaries[e.address] || e.salary}</td>
                       </tr>
                     ))}
@@ -752,9 +804,7 @@ export function EmployerDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <Footer />
-    </div>
+    </>
   );
 }
 
