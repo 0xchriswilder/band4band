@@ -152,6 +152,10 @@ export function EmployerDashboard() {
 
   // Payroll confirmation modal
   const [showPayrollConfirm, setShowPayrollConfirm] = useState(false);
+  // Approve Payroll explanation modal + per-action loading (so Onboard and Approve spinners don't couple)
+  const [showApprovePayrollModal, setShowApprovePayrollModal] = useState(false);
+  const [isApprovingPayroll, setIsApprovingPayroll] = useState(false);
+  const [isOnboardingEmployee, setIsOnboardingEmployee] = useState(false);
   // Invoice month filter (YYYY-MM)
   const [invoiceMonth, setInvoiceMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { invoicedAddresses } = useEmployerInvoices(invoiceMonth);
@@ -246,6 +250,7 @@ export function EmployerDashboard() {
 
   const handleOnboard = async () => {
     if (!employeeAddress || !salary) return;
+    setIsOnboardingEmployee(true);
     try {
       await onboardEmployee(employeeAddress, salary);
       await upsertEmployeeName(employeeAddress, employeeName.trim(), paymentFrequency, employeeEmail.trim());
@@ -256,6 +261,8 @@ export function EmployerDashboard() {
       setSalary('');
     } catch (err: any) {
       toast.error(getUserFriendlyErrorMessage(err, 'Onboard failed'));
+    } finally {
+      setIsOnboardingEmployee(false);
     }
   };
 
@@ -623,7 +630,7 @@ export function EmployerDashboard() {
                           <p className="text-xs text-emerald-700/90 mt-0.5">All payroll transactions for this employee will be processed with maximum privacy.</p>
                         </div>
                       </div>
-                      <Button className="w-full" onClick={handleOnboard} disabled={!hasPayroll || isWriting || isEncrypting || !employeeAddress || !salary} loading={isEncrypting || isWriting}>
+                      <Button className="w-full" onClick={handleOnboard} disabled={!hasPayroll || isWriting || isEncrypting || !employeeAddress || !salary} loading={isEncrypting || (isWriting && isOnboardingEmployee)}>
                         {isEncrypting ? 'Encrypting salary...' : 'Onboard Employee'}
                       </Button>
                     </motion.div>
@@ -773,7 +780,7 @@ export function EmployerDashboard() {
                   );
                 })()}
                 {hasPayroll && !isOperatorSet && (
-                  <Button variant="secondary" size="sm" onClick={async () => { try { await approvePayrollOperator(); toast.success('Payroll operator approved!'); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Approval failed')); }}} disabled={isWriting} loading={isWriting}>
+                  <Button variant="secondary" size="sm" onClick={() => setShowApprovePayrollModal(true)} disabled={isWriting && isApprovingPayroll} loading={isWriting && isApprovingPayroll}>
                     <CheckCircle2 className="h-4 w-4" /> Approve Payroll
                   </Button>
                 )}
@@ -996,6 +1003,53 @@ export function EmployerDashboard() {
                 </Button>
                 <Button className="flex-1" onClick={handleConfirmImportPreview} disabled={isImporting} loading={isImporting}>
                   <UserPlus className="h-4 w-4" /> Onboard {importPreviewRows.length} employee{importPreviewRows.length !== 1 ? 's' : ''}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Approve Payroll explanation modal */}
+      <AnimatePresence>
+        {showApprovePayrollModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Why approve payroll?</h3>
+                <button onClick={() => setShowApprovePayrollModal(false)} className="p-1 rounded-lg hover:bg-gray-100" disabled={isApprovingPayroll}><X className="h-5 w-5 text-[var(--color-text-tertiary)]" /></button>
+              </div>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-3">
+                The confidential token (cUSDCP) uses an <strong>operator pattern</strong>: your payroll contract must be approved to move tokens on your behalf when you run payroll.
+              </p>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-3">
+                This approval is a one-time setup per payroll contract. Once approved, you can run payroll whenever you want without approving again (until the approval expires or you revoke it).
+              </p>
+              <div className="p-3 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 rounded-xl mb-4">
+                <p className="text-xs text-[var(--color-text-primary)] font-medium">
+                  You will sign a transaction that sets this payroll contract as an allowed operator for your confidential token balance. No tokens are transferred until you click &quot;Run Payroll&quot;.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="secondary" className="flex-1" onClick={() => setShowApprovePayrollModal(false)} disabled={isApprovingPayroll}>Cancel</Button>
+                <Button
+                  className="flex-1"
+                  onClick={async () => {
+                    setIsApprovingPayroll(true);
+                    try {
+                      await approvePayrollOperator();
+                      toast.success('Payroll operator approved!');
+                      setShowApprovePayrollModal(false);
+                    } catch (err: any) {
+                      toast.error(getUserFriendlyErrorMessage(err, 'Approval failed'));
+                    } finally {
+                      setIsApprovingPayroll(false);
+                    }
+                  }}
+                  disabled={isWriting}
+                  loading={isWriting && isApprovingPayroll}
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Approve
                 </Button>
               </div>
             </motion.div>

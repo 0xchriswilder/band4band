@@ -8,11 +8,13 @@ dotenv.config();
 const RPC_URL = process.env.RPC_URL || process.env.ALCHEMY_RPC_URL || process.env.VITE_SEPOLIA_RPC_URL;
 const provider = new ethers.JsonRpcProvider(RPC_URL!);
 const FACTORY_ADDRESS = process.env.PAYROLL_FACTORY_ADDRESS!;
-const POLL_INTERVAL_MS = Number(process.env.INDEXER_POLL_MS || 15000);
-const CONFIRMATIONS = Number(process.env.INDEXER_CONFIRMATIONS || 2);
+/** Delay between indexer cycles (ms). 0 = no pause, run continuously; env INDEXER_POLL_MS overrides. */
+const POLL_INTERVAL_MS = Number(process.env.INDEXER_POLL_MS ?? 0);
+/** Blocks to wait for finality (0 = index up to latest block for real-time). */
+const CONFIRMATIONS = Number(process.env.INDEXER_CONFIRMATIONS || 0);
 const MAX_PARALLEL = 5;
-/** When factory has never been indexed, only scan this many blocks back (avoids scanning from 0). */
-const FACTORY_LOOKBACK_BLOCKS = Number(process.env.INDEXER_FACTORY_LOOKBACK_BLOCKS || 20000);
+/** Block range per RPC request. Live-only mode: we scan new blocks only, 10 at a time. */
+const BLOCK_WINDOW = Number(process.env.INDEXER_BLOCK_WINDOW || 10);
 
 /* ------------------------------------------------------------
    Utilities
@@ -298,28 +300,29 @@ async function discoverNewPayrolls() {
   const lastBlockStr = await getMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, "0");
   let from = parseInt(lastBlockStr, 10);
   const latest = await provider.getBlockNumber();
-  const BLOCK_WINDOW = 50000;
 
   if (from === 0) {
-    from = Math.max(0, latest - FACTORY_LOOKBACK_BLOCKS);
-    console.log(`First factory run: scanning recent blocks only (${from} -> ${latest}, lookback=${FACTORY_LOOKBACK_BLOCKS})`);
+    from = latest;
+    await setMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, latest.toString());
+    return;
   }
 
-  console.log(`Scanning factory events from ${from} -> ${latest}...`);
   let allEvents: ethers.EventLog[] = [];
-
-  for (let start = from; start <= latest; start += BLOCK_WINDOW) {
-    const end = Math.min(latest, start + BLOCK_WINDOW - 1);
-    try {
-      const chunk = await factory.queryFilter("PayrollCreated", start, end);
-      allEvents = allEvents.concat(chunk as ethers.EventLog[]);
-    } catch (err: any) {
-      console.warn(`Failed fetching logs ${start}-${end}: ${err.message}`);
-      await new Promise((res) => setTimeout(res, 2000));
+  if (from < latest) {
+    for (let start = from; start <= latest; start += BLOCK_WINDOW) {
+      const end = Math.min(latest, start + BLOCK_WINDOW - 1);
+      try {
+        const chunk = await factory.queryFilter("PayrollCreated", start, end);
+        allEvents = allEvents.concat(chunk as ethers.EventLog[]);
+      } catch (err: any) {
+        console.warn(`Failed fetching logs ${start}-${end}: ${err.message}`);
+        await new Promise((res) => setTimeout(res, 500));
+      }
+    }
+    if (allEvents.length > 0) {
+      console.log(`Factory: found ${allEvents.length} PayrollCreated event(s)`);
     }
   }
-
-  console.log(`Found ${allEvents.length} PayrollCreated events`);
 
   for (const ev of allEvents) {
     if (!(ev instanceof ethers.EventLog)) continue;
@@ -355,25 +358,17 @@ async function indexPayroll(payrollAddress: string) {
     ConfidentialPayrollABI.abi,
     provider
   );
-  const BLOCK_WINDOW = 50000;
 
   let from = parseInt(await getMeta(`${payrollAddress}_lastIndexedBlock`, "0"), 10);
   const latest = await provider.getBlockNumber();
   const safeToBlock = Math.max(0, latest - CONFIRMATIONS);
 
   if (from === 0) {
-    const { data: row } = await supabase
-      .from("payrolls")
-      .select("deployed_at_block")
-      .eq("address", payrollAddress.toLowerCase())
-      .single();
-    const deployedBlock = row?.deployed_at_block != null ? Number(row.deployed_at_block) : 0;
-    from = deployedBlock > 0 ? deployedBlock : safeToBlock;
-    console.log(`First time indexing ${payrollAddress}, starting at block ${from} (recent only, no past backfill)`);
+    await setMeta(`${payrollAddress}_lastIndexedBlock`, safeToBlock.toString());
+    return;
   }
 
   if (safeToBlock <= from) {
-    console.log(`${payrollAddress} already up-to-date`);
     return;
   }
 
@@ -386,7 +381,8 @@ async function indexPayroll(payrollAddress: string) {
     "SalaryClaimed",
   ];
 
-  console.log(`Indexing ${payrollAddress} from ${from} -> ${safeToBlock}...`);
+  const range = safeToBlock - from + 1;
+  console.log(`Indexing ${payrollAddress} ${range} new block${range !== 1 ? "s" : ""} (${from}->${safeToBlock}, window=${BLOCK_WINDOW})`);
   let allEvents: ethers.EventLog[] = [];
 
   for (let start = from; start <= safeToBlock; start += BLOCK_WINDOW) {
@@ -397,7 +393,7 @@ async function indexPayroll(payrollAddress: string) {
         allEvents = allEvents.concat(chunk as ethers.EventLog[]);
       } catch (err: any) {
         console.warn(`Error fetching ${eventName} ${start}-${end}: ${err.message}`);
-        await new Promise((res) => setTimeout(res, 2000));
+        await new Promise((res) => setTimeout(res, 500));
       }
     }
   }
@@ -417,12 +413,10 @@ async function indexPayroll(payrollAddress: string) {
 ------------------------------------------------------------ */
 
 async function runIndexer() {
-  console.log("Starting indexer cycle...");
   await discoverNewPayrolls();
 
   const { data: payrolls } = await supabase.from("payrolls").select("address");
   const list = payrolls ?? [];
-  console.log(`Found ${list.length} payrolls`);
 
   const chunks = [];
   for (let i = 0; i < list.length; i += MAX_PARALLEL) {
@@ -432,8 +426,6 @@ async function runIndexer() {
   for (const group of chunks) {
     await Promise.allSettled(group.map((p) => indexPayroll(p.address)));
   }
-
-  console.log("Cycle complete. Waiting for next run...");
 }
 
 /* ------------------------------------------------------------
@@ -441,12 +433,15 @@ async function runIndexer() {
 ------------------------------------------------------------ */
 
 export async function startIndexerLoop() {
+  console.log(`Indexer running live-only (block window=${BLOCK_WINDOW}, poll=${POLL_INTERVAL_MS}ms)`);
   while (true) {
     try {
       await runIndexer();
     } catch (err) {
-      console.error("Indexer cycle error:", err);
+      console.error("Indexer error:", err);
     }
-    await new Promise((res) => setTimeout(res, POLL_INTERVAL_MS));
+    if (POLL_INTERVAL_MS > 0) {
+      await new Promise((res) => setTimeout(res, POLL_INTERVAL_MS));
+    }
   }
 }
