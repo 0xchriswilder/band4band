@@ -347,6 +347,11 @@ export function EmployerDashboard() {
     return sal && Number(sal) > 0;
   });
 
+  const allSalariesDecrypted = localEmployees.every((e) => {
+    const addrLower = e.address.toLowerCase();
+    return !salaryHandles[addrLower] || addrLower in decryptedSalaries;
+  });
+
   if (!isConnected) {
     return (
       <ConnectWalletCTA
@@ -784,7 +789,7 @@ export function EmployerDashboard() {
                     <CheckCircle2 className="h-4 w-4" /> Approve Payroll
                   </Button>
                 )}
-                <Button size="sm" onClick={() => setShowPayrollConfirm(true)} disabled={!hasPayroll || !isOperatorSet || localEmployees.length === 0 || isWriting || isEncrypting} loading={isEncrypting && localEmployees.length > 0} title={!isOperatorSet ? 'Click "Approve Payroll" first' : ''}>
+                <Button size="sm" onClick={() => setShowPayrollConfirm(true)} disabled={!hasPayroll || !isOperatorSet || localEmployees.length === 0 || !allSalariesDecrypted || isWriting || isEncrypting} loading={isEncrypting && localEmployees.length > 0} title={!isOperatorSet ? 'Click "Approve Payroll" first' : !allSalariesDecrypted ? 'Decrypt all on-chain salaries first' : ''}>
                   <Play className="h-4 w-4" /> Run Payroll
                 </Button>
               </div>
@@ -1091,7 +1096,7 @@ export function EmployerDashboard() {
               </div>
               <div className="flex gap-3">
                 <Button variant="secondary" className="flex-1" onClick={() => setShowPayrollConfirm(false)}>Cancel</Button>
-                <Button className="flex-1" onClick={handleRunPayroll} disabled={isWriting || isEncrypting} loading={isWriting || isEncrypting}>
+                <Button className="flex-1" onClick={handleRunPayroll} disabled={payableEmployees.length === 0 || isWriting || isEncrypting} loading={isWriting || isEncrypting}>
                   <Play className="h-4 w-4" /> Execute Payroll
                 </Button>
               </div>
