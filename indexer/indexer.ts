@@ -5,11 +5,14 @@ import ConfidentialPayrollABI from "./abis/ConfidentialPayroll.json";
 import dotenv from "dotenv";
 dotenv.config();
 
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL!);
+const RPC_URL = process.env.RPC_URL || process.env.ALCHEMY_RPC_URL || process.env.VITE_SEPOLIA_RPC_URL;
+const provider = new ethers.JsonRpcProvider(RPC_URL!);
 const FACTORY_ADDRESS = process.env.PAYROLL_FACTORY_ADDRESS!;
 const POLL_INTERVAL_MS = Number(process.env.INDEXER_POLL_MS || 15000);
 const CONFIRMATIONS = Number(process.env.INDEXER_CONFIRMATIONS || 2);
 const MAX_PARALLEL = 5;
+/** When factory has never been indexed, only scan this many blocks back (avoids scanning from 0). */
+const FACTORY_LOOKBACK_BLOCKS = Number(process.env.INDEXER_FACTORY_LOOKBACK_BLOCKS || 20000);
 
 /* ------------------------------------------------------------
    Utilities
@@ -293,9 +296,14 @@ async function discoverNewPayrolls() {
     provider
   );
   const lastBlockStr = await getMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, "0");
-  const from = parseInt(lastBlockStr);
+  let from = parseInt(lastBlockStr, 10);
   const latest = await provider.getBlockNumber();
   const BLOCK_WINDOW = 50000;
+
+  if (from === 0) {
+    from = Math.max(0, latest - FACTORY_LOOKBACK_BLOCKS);
+    console.log(`First factory run: scanning recent blocks only (${from} -> ${latest}, lookback=${FACTORY_LOOKBACK_BLOCKS})`);
+  }
 
   console.log(`Scanning factory events from ${from} -> ${latest}...`);
   let allEvents: ethers.EventLog[] = [];

@@ -15,7 +15,8 @@ import ConfidentialPayrollABI from "./abis/ConfidentialPayroll.json";
 import dotenv from "dotenv";
 dotenv.config();
 
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL!);
+const RPC_URL = process.env.RPC_URL || process.env.ALCHEMY_RPC_URL || process.env.VITE_SEPOLIA_RPC_URL;
+const provider = new ethers.JsonRpcProvider(RPC_URL!);
 const FACTORY_ADDRESS = process.env.PAYROLL_FACTORY_ADDRESS!;
 
 const BLOCK_FROM = parseInt(process.env.BLOCK_FROM || "10280482", 10);
