@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Papa from 'papaparse';
+import Papa, { type ParseResult } from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, useWriteContract } from 'wagmi';
@@ -180,7 +180,7 @@ export function EmployerDashboard() {
           Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
-            complete: (result) => resolve({ data: result.data as Array<Record<string, string>> }),
+            complete: (result: ParseResult<Record<string, string>>) => resolve({ data: result.data as Array<Record<string, string>> }),
             error: reject,
           });
         });

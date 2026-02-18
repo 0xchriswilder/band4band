@@ -16,7 +16,7 @@ declare global {
   interface Window {
     RelayerSDK?: RelayerSDKType;
     relayerSDK?: RelayerSDKType;
-    ethereum?: unknown;
+    ethereum?: any;
   }
 }
 
