@@ -1,9 +1,9 @@
 # Build and deploy the frontend (Vite/React SPA)
+# base = run command from this directory (so npm finds package.json)
 [build]
-  base = "/"
+  base = "frontend"
   command = "npm run build"
-  publish = "frontend/dist"
-  directory = "frontend"
+  publish = "dist"
 
 # SPA: serve index.html for all routes so client-side routing works
 [[redirects]]
