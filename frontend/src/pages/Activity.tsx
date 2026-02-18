@@ -48,6 +48,7 @@ import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
 import { formatAddress, formatAmount, getUserFriendlyErrorMessage, toDirectImageUrl } from '../lib/utils';
 import { TOKEN_CONFIG, CONTRACTS } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
+import { Avatar } from '../components/Avatar';
 import { EmployerLogo } from '../components/EmployerLogo';
 import { CusdcpLogo } from '../components/icons/CusdcpLogo';
 import { supabase } from '../lib/supabase';
@@ -72,7 +73,7 @@ export function Activity() {
     reload: reloadEmployer,
   } = useEmployerPaymentHistory();
   const { employees, total: employeeCount } = useEmployerEmployees();
-  const { names: employerEmployeeNames } = useEmployerEmployeeNames();
+  const { names: employerEmployeeNames, avatars: employerEmployeeAvatars } = useEmployerEmployeeNames();
 
   // Employee data
   const { employee: employeeProfile, isEmployee } = useEmployeeProfile();
@@ -145,7 +146,7 @@ export function Activity() {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, sum]) => ({
         month,
-        label: new Date(month + '-01').toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
+        label: new Date(month + '-01').toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
         sumUsdc: Number(sum) / 10 ** TOKEN_CONFIG.decimals,
         sumRaw: sum,
       }));
@@ -250,6 +251,7 @@ export function Activity() {
     employerCompanyName?: string | null,
     employerLogoUrl?: string | null,
     employeeNames?: Record<string, string>,
+    employeeAvatars?: Record<string, string>,
   ) => (
     <Card variant="elevated" className="overflow-hidden rounded-xl shadow-sm">
       <div className="p-6 border-b border-[var(--color-border-light)] bg-white">
@@ -328,20 +330,27 @@ export function Activity() {
                       </td>
                       {showEmployeeCol && (
                         <td className="px-6 py-5">
-                          {employeeNames?.[p.employee.toLowerCase()] ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">
-                                {employeeNames[p.employee.toLowerCase()]}
-                              </span>
-                              <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
+                          <div className="flex items-center gap-3">
+                            <Avatar
+                              src={employeeAvatars?.[p.employee.toLowerCase()]}
+                              fallbackText={employeeNames?.[p.employee.toLowerCase()] || p.employee}
+                              className="h-9 w-9 shrink-0 rounded-lg"
+                            />
+                            {employeeNames?.[p.employee.toLowerCase()] ? (
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="text-sm font-semibold text-[var(--color-text-primary)]">
+                                  {employeeNames[p.employee.toLowerCase()]}
+                                </span>
+                                <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
+                                  {formatAddress(p.employee, 6)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
                                 {formatAddress(p.employee, 6)}
                               </span>
-                            </div>
-                          ) : (
-                            <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
-                              {formatAddress(p.employee, 6)}
-                            </span>
-                          )}
+                            )}
+                          </div>
                         </td>
                       )}
                       {showEmployerCol && (
@@ -701,7 +710,7 @@ export function Activity() {
 
             {/* Employer Payment History */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: isEmployee ? 0.3 : 0.15 }}>
-              {renderPaymentTable(
+              {              renderPaymentTable(
                 employerPayments,
                 employerTotal,
                 employerPage,
@@ -715,6 +724,7 @@ export function Activity() {
                 undefined,
                 undefined,
                 employerEmployeeNames,
+                employerEmployeeAvatars,
               )}
             </motion.div>
 

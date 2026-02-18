@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -13,8 +13,8 @@ export function Footer() {
           {/* Logo & Description */}
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="inline-flex items-center gap-2 mb-5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white">
-                <Shield className="w-4 h-4" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white overflow-hidden">
+                <img src="/payroll.png" alt="" className="h-6 w-6 object-contain" />
               </div>
               <span className="text-lg font-bold tracking-tight text-[var(--color-text-primary)]">
                 Payroll Guard

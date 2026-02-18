@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Shield } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useFhevm } from '../../providers/useFhevmContext';
 
@@ -14,8 +13,8 @@ export function Header() {
         <div className="flex h-20 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-md shadow-[var(--color-primary)]/25 group-hover:shadow-lg group-hover:shadow-[var(--color-primary)]/30 transition-all">
-              <Shield className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-md shadow-[var(--color-primary)]/25 group-hover:shadow-lg group-hover:shadow-[var(--color-primary)]/30 transition-all overflow-hidden">
+              <img src="/payroll.png" alt="" className="h-7 w-7 object-contain" />
             </div>
             <span className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
               Payroll Guard

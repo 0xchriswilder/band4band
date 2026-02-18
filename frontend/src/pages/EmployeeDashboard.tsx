@@ -531,9 +531,15 @@ export function EmployeeDashboard() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
-                  <Input type="number" placeholder="0.00" step="0.01" min="0" value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} />
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={wrapAmount}
+                    onChange={(e) => setWrapAmount(e.target.value)}
+                  />
                   <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setWrapAmount(usdcBalanceFormatted)}>MAX</button>
                 </div>
                 <Button
@@ -598,9 +604,15 @@ export function EmployeeDashboard() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
-                  <Input type="number" placeholder="0.00" step="0.01" min="0" value={unwrapAmount} onChange={(e) => setUnwrapAmount(e.target.value)} />
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={unwrapAmount}
+                    onChange={(e) => setUnwrapAmount(e.target.value)}
+                  />
                   {cusdcpDecrypted && cusdcpBalance !== null && cusdcpBalance > 0n && (
                     <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setUnwrapAmount(formatAmount(cusdcpBalance, TOKEN_CONFIG.decimals))}>MAX</button>
                   )}
@@ -681,7 +693,7 @@ export function EmployeeDashboard() {
                   const isDecryptedPayment = key in decryptedValues;
                   return (
                     <div key={key} className="p-4 sm:p-5 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                           isDecryptedPayment ? 'bg-emerald-50' : 'bg-gray-100'
                         }`}>
@@ -699,7 +711,7 @@ export function EmployeeDashboard() {
                               <Badge variant="success" size="sm">Decrypted</Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-[var(--color-text-tertiary)] mt-0.5 flex-wrap">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-[var(--color-text-tertiary)] mt-0.5">
                             <span>
                               {new Date(p.timestamp).toLocaleDateString(undefined, {
                                 year: 'numeric',
@@ -731,7 +743,7 @@ export function EmployeeDashboard() {
                           </div>
                         </div>
 
-                        <div className="text-right flex items-center gap-3">
+                        <div className="mt-3 sm:mt-0 text-right flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:ml-auto">
                           <PayStubButton
                             payment={p}
                             decryptedAmount={isDecryptedPayment ? decryptedValues[key] : undefined}

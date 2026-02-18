@@ -3,7 +3,6 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useDisconnect } from 'wagmi';
 import {
-  Shield,
   Home,
   Building2,
   UserCircle,
@@ -81,8 +80,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           {/* Mobile close / menu - shown in main area via AppLayout, not here */}
           <div className="flex items-center justify-between md:justify-start">
             <Link to="/" className="flex items-center gap-3" onClick={closeMobile}>
-              <div className="bg-[var(--color-primary)] rounded-lg p-2 text-white shadow-md shadow-[var(--color-primary)]/25">
-                <Shield className="h-5 w-5" />
+              <div className="bg-[var(--color-primary)] rounded-lg p-1.5 text-white shadow-md shadow-[var(--color-primary)]/25 flex items-center justify-center">
+                <img src="/payroll.png" alt="" className="h-8 w-8 object-contain" />
               </div>
               <div className="flex flex-col">
                 <h1 className="text-[var(--color-text-primary)] text-lg font-bold leading-none">

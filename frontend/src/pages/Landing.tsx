@@ -97,7 +97,7 @@ export function Landing() {
             <div className="flex flex-col gap-8">
               <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp}>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-primary)]/10 px-3 py-1 text-sm font-bold text-[var(--color-primary)]">
-                  <Shield className="h-4 w-4" />
+                  <img src="/payroll.png" alt="" className="h-4 w-4 object-contain" />
                   Powered by Zama FHE Technology
                 </div>
               </motion.div>
@@ -241,6 +241,88 @@ export function Landing() {
         </div>
       </section>
 
+      {/* ─── Comparison: Traditional vs Confidential Payroll ─── */}
+      <section className="py-24 bg-[var(--color-bg-light)] border-t border-[var(--color-border-light)]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-14 text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
+              Traditional Payroll vs Confidential Payroll
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-[var(--color-text-secondary)]">
+              See how on-chain confidential payroll compares to existing solutions like Deel, Rippling, and others.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border border-[var(--color-border-light)] rounded-2xl overflow-hidden bg-white shadow-sm">
+              <thead>
+                <tr className="bg-[var(--color-bg-light)] border-b border-[var(--color-border-light)]">
+                  <th className="px-6 py-4 text-left text-sm font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
+                    Capability
+                  </th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
+                    Deel / Rippling / Gusto
+                  </th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-[var(--color-primary)] uppercase tracking-wider bg-[var(--color-primary)]/5">
+                    Confidential Payroll (Ours)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border-light)]">
+                {[
+                  {
+                    capability: 'Salary amounts visible',
+                    traditional: 'Platform & employer see all amounts',
+                    ours: 'Encrypted on-chain; only employee can decrypt',
+                  },
+                  {
+                    capability: 'On-chain verification',
+                    traditional: 'Usually off-chain or opaque',
+                    ours: 'Fully on-chain, verifiable, private',
+                  },
+                  {
+                    capability: 'Who can see what you pay',
+                    traditional: 'Provider, admins, sometimes auditors',
+                    ours: 'Only you and the employee (FHE)',
+                  },
+                  {
+                    capability: 'Censorship resistance',
+                    traditional: 'Tied to provider; can freeze accounts',
+                    ours: 'Self-custody; wallet and contract control',
+                  },
+                  {
+                    capability: 'Audit trail',
+                    traditional: 'Internal logs, exportable reports',
+                    ours: 'Public blockchain; amounts stay encrypted',
+                  },
+                  {
+                    capability: 'Batch payments',
+                    traditional: 'Yes (ACH, wire, etc.)',
+                    ours: 'Yes — one tx for full payroll (ERC-7984)',
+                  },
+                ].map((row) => (
+                  <tr key={row.capability} className="hover:bg-[var(--color-bg-light)]/50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-[var(--color-text-primary)]">
+                      {row.capability}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-[var(--color-text-secondary)] text-center">
+                      {row.traditional}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-[var(--color-text-primary)] text-center bg-[var(--color-primary)]/5 font-medium">
+                      {row.ours}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-6 text-center text-sm text-[var(--color-text-tertiary)]">
+            Built on Zama fhEVM and ERC-7984 confidential tokens. No third party can see salary data.
+          </p>
+        </div>
+      </section>
+
       {/* ─── Privacy Showcase (Dark CTA Section) ─── */}
       <section className="py-24 bg-[var(--color-bg-light)] overflow-hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -299,8 +381,8 @@ export function Landing() {
               >
                 <div className="rounded-2xl border border-zinc-700 bg-zinc-800/50 p-6 backdrop-blur-sm shadow-xl">
                   <div className="flex items-center gap-3 mb-6 border-b border-zinc-700 pb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[var(--color-primary)] to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-[var(--color-primary)]/25">
-                      <Shield className="w-6 h-6 text-white" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-[var(--color-primary)] to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-[var(--color-primary)]/25 p-1.5">
+                      <img src="/payroll.png" alt="" className="w-full h-full object-contain" />
                     </div>
                     <div>
                       <p className="text-white/60 text-sm font-medium">Confidential Balance</p>

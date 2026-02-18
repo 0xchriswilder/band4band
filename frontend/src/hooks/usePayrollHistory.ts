@@ -374,6 +374,7 @@ export function useEmployerEmployeeNames() {
   const [names, setNames] = useState<Record<string, string>>({});
   const [frequencies, setFrequencies] = useState<Record<string, string>>({});
   const [emails, setEmails] = useState<Record<string, string>>({});
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
   const fetch = useCallback(async () => {
@@ -382,7 +383,7 @@ export function useEmployerEmployeeNames() {
     try {
       const { data, error } = await supabase
         .from('employee_display_names')
-        .select('employee_address, name, email, payment_frequency')
+        .select('employee_address, name, email, payment_frequency, avatar_url')
         .eq('employer_address', address.toLowerCase());
 
       if (error) {
@@ -390,27 +391,32 @@ export function useEmployerEmployeeNames() {
         setNames({});
         setFrequencies({});
         setEmails({});
+        setAvatars({});
         return;
       }
       const map: Record<string, string> = {};
       const freqMap: Record<string, string> = {};
       const emailMap: Record<string, string> = {};
+      const avatarMap: Record<string, string> = {};
       for (const row of (data as EmployeeDisplayNameRow[]) ?? []) {
         const emp = row.employee_address?.toLowerCase();
         if (emp) {
           map[emp] = row.name ?? '';
           if (row.payment_frequency) freqMap[emp] = row.payment_frequency;
           if (row.email) emailMap[emp] = row.email;
+          if (row.avatar_url?.trim()) avatarMap[emp] = row.avatar_url.trim();
         }
       }
       setNames(map);
       setFrequencies(freqMap);
       setEmails(emailMap);
+      setAvatars(avatarMap);
     } catch (err) {
       console.error('[Supabase] employer employee names error:', err);
       setNames({});
       setFrequencies({});
       setEmails({});
+      setAvatars({});
     } finally {
       setIsLoading(false);
     }
@@ -444,11 +450,11 @@ export function useEmployerEmployeeNames() {
     [address]
   );
 
-  return { names, frequencies, emails, isLoading, reload: fetch, upsertName };
+  return { names, frequencies, emails, avatars, isLoading, reload: fetch, upsertName };
 }
 
-/* ─── Employer: latest salary payment encrypted handle per employee (from Supabase, for decrypt) ─── */
-/* Uses salary_payments when available; falls back to employees.encrypted_salary for new employees not yet paid. */
+/* ─── Employer: latest (current) encrypted salary handle per employee (from Supabase, for decrypt) ─── */
+/* Prefers latest from salary_updates (after EmployerUpdated); falls back to employees.encrypted_salary if no update yet. */
 
 export function useEmployerLatestPaymentHandles() {
   const { address } = useAccount();
@@ -462,18 +468,20 @@ export function useEmployerLatestPaymentHandles() {
       const employer = address.toLowerCase();
       const map: Record<string, string> = {};
 
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('salary_payments')
-        .select('employee, encrypted')
+      const { data: updateData, error: updateError } = await supabase
+        .from('salary_updates')
+        .select('employee, encrypted_salary')
         .eq('employer', employer)
         .order('block_number', { ascending: false });
 
-      if (paymentError) {
-        console.error('[Supabase] employer latest payment handles error:', paymentError.message);
+      if (updateError) {
+        console.error('[Supabase] employer salary_updates error:', updateError.message);
       } else {
-        for (const row of (paymentData ?? [])) {
-          const emp = (row as { employee: string; encrypted: string }).employee?.toLowerCase();
-          if (emp && !(emp in map)) map[emp] = (row as { employee: string; encrypted: string }).encrypted;
+        for (const row of (updateData ?? []) as { employee: string; encrypted_salary: string }[]) {
+          const emp = row.employee?.toLowerCase();
+          if (emp && row.encrypted_salary && typeof row.encrypted_salary === 'string' && row.encrypted_salary.startsWith('0x') && !(emp in map)) {
+            map[emp] = row.encrypted_salary;
+          }
         }
       }
 
