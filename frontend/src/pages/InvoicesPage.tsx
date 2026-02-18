@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { FileText, CheckCircle2, ArrowLeft, Lock, Calendar, Shield } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { useEmployeeProfile, useEmployeeInvoices, useEmployerCompanyName } from '../hooks/usePayrollHistory';
@@ -26,9 +26,16 @@ export function InvoicesPage() {
       <ConnectWalletCTA
         embedded
         icon={FileText}
-        title="Invoices"
-        titleAccent=""
+        badge="Invoices"
+        title="Submit & View"
+        titleAccent="Invoices"
         subtitle="Connect your wallet to view your invoices or manage employee invoices."
+        features={[
+          { icon: FileText, title: 'Submit Invoices', description: 'Employees submit monthly invoices; employers see and manage them.' },
+          { icon: Calendar, title: 'By Month', description: 'View and filter invoices by month, then run payroll when ready.' },
+          { icon: Lock, title: 'Encrypted Amounts', description: 'Salary amounts stay encrypted; decrypt only when you need to pay.' },
+          { icon: Shield, title: 'Role-Based', description: 'See your own invoices as an employee, or the full list as an employer.' },
+        ]}
       />
     );
   }

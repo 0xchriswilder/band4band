@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FileText, RefreshCw, CheckCircle2, ArrowLeft, Play, DollarSign, Unlock } from 'lucide-react';
+import { FileText, RefreshCw, CheckCircle2, ArrowLeft, Play, DollarSign, Unlock, Lock, Users, Shield } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -136,9 +136,20 @@ export function EmployerInvoices() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center p-6">
-        <ConnectWalletCTA />
-      </div>
+      <ConnectWalletCTA
+        embedded
+        icon={FileText}
+        badge="For Employers"
+        title="Invoices &"
+        titleAccent="Payroll"
+        subtitle="Connect your wallet to view employee invoices by month, decrypt salaries, and run confidential payroll."
+        features={[
+          { icon: FileText, title: 'Monthly Invoices', description: 'See who submitted invoices each month and mark them for payroll.' },
+          { icon: Lock, title: 'Decrypt Salaries', description: 'Reveal encrypted salary amounts so you can set pay and run payroll.' },
+          { icon: Users, title: 'Batch or Single Pay', description: 'Pay one employee or run batch payroll for the whole month.' },
+          { icon: Shield, title: 'On-Chain & Private', description: 'All payments are FHE-encrypted on-chain; only you and the employee can decrypt.' },
+        ]}
+      />
     );
   }
 
