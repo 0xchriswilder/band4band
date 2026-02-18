@@ -32,6 +32,23 @@ A functioning **confidential payroll dApp** where a company can pay employees on
 
 ---
 
+## Additional features (usability & real-world applicability)
+
+All of the following are implemented and documented here for completeness.
+
+| Feature | Description | Where to find it |
+|--------|--------------|------------------|
+| **Company profile** | Name, logo, industry, website. Stored in Supabase (`employer_profiles`); logo in storage bucket. | Employer dashboard: company card / settings; shown in invoices and header. |
+| **Employee display names and emails** | Stored off-chain in Supabase; editable per employee. | Sidebar, employee table, profile modal; pre-filled when editing. |
+| **Payment frequency** | Per employee: monthly / bi-weekly / weekly. Used for invoicing and display. | Employer dashboard: employee row and edit profile modal. |
+| **CSV/XLSX bulk import** | Upload spreadsheet (address, salary, name, email, payment_frequency); **preview table** before confirming onboard. | Employer dashboard: “Import from spreadsheet” → choose file → preview → Onboard. |
+| **Transaction history** | Employer and employee views of payments. **Payroll Volume** chart (e.g. by month) and **Payment Distribution** chart. | **Activity** page; filter by payroll / role. |
+| **Invoicing** | Employees submit invoices (per month); employers see status and mark them paid. | Employee: Invoices page; Employer: dashboard invoice column + Invoices page. |
+| **Export payment history to CSV** | Download payment history as CSV. | Activity page (and employer/employee history views): “Export CSV” (or equivalent). |
+| **Unwrap cUSDC → USDC** | Optional conversion of confidential balance back to plain USDC. | Employee dashboard: “Unwrap” section; enter amount and confirm. |
+
+---
+
 ## Requirements (bounty checklist)
 
 | Requirement | Status |
@@ -269,7 +286,7 @@ A 2-minute video will be submitted to pitch the project, showing:
 1. **Employer flow:** Connect wallet → Register payroll → Wrap USDC → Set operator → Onboard employees (manual + CSV preview) → Run payroll.  
 2. **Confidentiality:** Transaction on explorer shows encrypted data; only employer and employee can decrypt.  
 3. **Employee flow:** Connect as employee → View payment history → Decrypt payment → (optional) Unwrap cUSDC.  
-4. **Extra features:** Company profile, transaction history charts, CSV export, invoicing.
+4. **Extra features:** Company profile (name, logo, industry, website), employee names/emails, payment frequency, CSV/XLSX import with preview, transaction history with Payroll Volume and Payment Distribution charts, invoicing, CSV export, unwrap cUSDC → USDC.
 
 ---
 
