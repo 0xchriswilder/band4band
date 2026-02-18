@@ -1,8 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
 import {
   ArrowLeft,
   Clock,
@@ -28,11 +41,16 @@ import {
   useEmployerEmployees,
   useEmployeePaymentHistory,
   useEmployeeProfile,
+  useEmployerCompanyName,
+  useEmployerEmployeeNames,
 } from '../hooks/usePayrollHistory';
 import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
-import { formatAddress, formatAmount, getUserFriendlyErrorMessage } from '../lib/utils';
+import { formatAddress, formatAmount, getUserFriendlyErrorMessage, toDirectImageUrl } from '../lib/utils';
 import { TOKEN_CONFIG, CONTRACTS } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
+import { EmployerLogo } from '../components/EmployerLogo';
+import { CusdcpLogo } from '../components/icons/CusdcpLogo';
+import { supabase } from '../lib/supabase';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -54,9 +72,11 @@ export function Activity() {
     reload: reloadEmployer,
   } = useEmployerPaymentHistory();
   const { employees, total: employeeCount } = useEmployerEmployees();
+  const { names: employerEmployeeNames } = useEmployerEmployeeNames();
 
   // Employee data
   const { employee: employeeProfile, isEmployee } = useEmployeeProfile();
+  const { companyName: employerCompanyName, logoUrl: employerLogoUrl } = useEmployerCompanyName(employeeProfile?.employer);
   const {
     payments: employeePayments,
     total: employeeTotal,
@@ -67,11 +87,73 @@ export function Activity() {
     reload: reloadEmployee,
   } = useEmployeePaymentHistory();
 
-  const { decryptHandle, isReady: fheReady } = useFhevmDecrypt();
+  const { decryptHandle, decryptHandleBatch, isReady: fheReady, isDecrypting: fheDecrypting } = useFhevmDecrypt();
   const [decryptedAmounts, setDecryptedAmounts] = useState<Record<string, bigint>>({});
   const [decryptingKey, setDecryptingKey] = useState<string | null>(null);
+  const [chartPayments, setChartPayments] = useState<Array<{ timestamp: string; encrypted: string }>>([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartDecryptedByHandle, setChartDecryptedByHandle] = useState<Record<string, bigint>>({});
+  const [chartDecrypting, setChartDecrypting] = useState(false);
 
   const isEmployer = employerTotal > 0 || employees.length > 0;
+
+  // Fetch payments with encrypted handle for employer chart (up to 500)
+  useEffect(() => {
+    if (!isEmployer || !address) return;
+    setChartLoading(true);
+    const p = supabase
+      .from('salary_payments')
+      .select('timestamp, encrypted')
+      .eq('employer', address.toLowerCase())
+      .order('block_number', { ascending: false })
+      .limit(500);
+    void Promise.resolve(p).then(({ data, error }) => {
+      if (!error && data) {
+        setChartPayments((data as Array<{ timestamp: string; encrypted: string }>).filter((r) => r.encrypted && r.encrypted !== '0x' + '0'.repeat(64)));
+      } else {
+        setChartPayments([]);
+      }
+      setChartLoading(false);
+    }).catch(() => setChartLoading(false));
+  }, [isEmployer, address]);
+
+  const handleDecryptChart = async () => {
+    const handles = [...new Set(chartPayments.map((p) => p.encrypted))];
+    if (handles.length === 0) return;
+    setChartDecrypting(true);
+    try {
+      const result = await decryptHandleBatch(handles, CONTRACTS.CONF_TOKEN);
+      setChartDecryptedByHandle(result);
+      if (Object.keys(result).length > 0) toast.success('Amounts decrypted for chart');
+    } catch (err) {
+      toast.error(getUserFriendlyErrorMessage(err, 'Batch decrypt failed'));
+    } finally {
+      setChartDecrypting(false);
+    }
+  };
+
+  const payrollVolumeData = useMemo(() => {
+    const byMonth: Record<string, bigint> = {};
+    for (const p of chartPayments) {
+      const d = new Date(p.timestamp);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const amount = chartDecryptedByHandle[p.encrypted] ?? 0n;
+      byMonth[key] = (byMonth[key] ?? 0n) + amount;
+    }
+    return Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, sum]) => ({
+        month,
+        label: new Date(month + '-01').toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
+        sumUsdc: Number(sum) / 10 ** TOKEN_CONFIG.decimals,
+        sumRaw: sum,
+      }));
+  }, [chartPayments, chartDecryptedByHandle]);
+
+  const paymentDistributionData = useMemo(() => {
+    return [{ name: 'cUSDCP', value: chartPayments.length, color: '#2775CA' }];
+  }, [chartPayments.length]);
 
   const handleDecryptPayment = async (txHash: string, employee: string, encrypted: string) => {
     const key = `${txHash}-${employee}`;
@@ -90,15 +172,17 @@ export function Activity() {
     }
   };
 
-  const handleExportCsv = (payments: typeof employerPayments, role: string) => {
+  const handleExportCsv = (payments: typeof employerPayments, role: string, employerCompanyName?: string | null) => {
     if (payments.length === 0) return;
-    const header = 'Date,Employee,Employer,Payroll Contract,Amount,Tx Hash,Block\n';
+    const header = 'Date,Employee,Employer,Payroll Contract,Amount,Tx Hash,Time\n';
     const rows = payments.map((p) => {
       const key = `${p.tx_hash}-${p.employee}`;
       const amount = decryptedAmounts[key] !== undefined
         ? formatAmount(decryptedAmounts[key], TOKEN_CONFIG.decimals)
         : 'Encrypted';
-      return `${new Date(p.timestamp).toISOString()},${p.employee},${p.employer},${p.payroll_address},${amount},${p.tx_hash},${p.block_number}`;
+      const timeStr = new Date(p.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const employerCol = employerCompanyName ? `"${employerCompanyName} (${p.employer})"` : p.employer;
+      return `${new Date(p.timestamp).toISOString()},${p.employee},${employerCol},${p.payroll_address},${amount},${p.tx_hash},${timeStr}`;
     }).join('\n');
 
     const blob = new Blob([header + rows], { type: 'text/csv' });
@@ -151,7 +235,7 @@ export function Activity() {
     );
   }
 
-  // Shared payment table renderer
+  // Shared payment table renderer (employerCompanyName: when showing employer column, show company name with address as subscript)
   const renderPaymentTable = (
     payments: typeof employerPayments,
     total: number,
@@ -163,6 +247,9 @@ export function Activity() {
     showEmployeeCol: boolean,
     showEmployerCol: boolean,
     role: string,
+    employerCompanyName?: string | null,
+    employerLogoUrl?: string | null,
+    employeeNames?: Record<string, string>,
   ) => (
     <Card variant="elevated" className="overflow-hidden rounded-xl shadow-sm">
       <div className="p-6 border-b border-[var(--color-border-light)] bg-white">
@@ -180,7 +267,7 @@ export function Activity() {
           </div>
           <div className="flex items-center gap-2">
             {payments.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => handleExportCsv(payments, role)}>
+              <Button variant="ghost" size="sm" onClick={() => handleExportCsv(payments, role, employerCompanyName)}>
                 <Download className="h-4 w-4" /> CSV
               </Button>
             )}
@@ -222,7 +309,7 @@ export function Activity() {
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Contract</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Amount</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Tx Hash</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Block</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Time</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border-light)]">
@@ -241,16 +328,49 @@ export function Activity() {
                       </td>
                       {showEmployeeCol && (
                         <td className="px-6 py-5">
-                          <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
-                            {formatAddress(p.employee, 6)}
-                          </span>
+                          {employeeNames?.[p.employee.toLowerCase()] ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">
+                                {employeeNames[p.employee.toLowerCase()]}
+                              </span>
+                              <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
+                                {formatAddress(p.employee, 6)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
+                              {formatAddress(p.employee, 6)}
+                            </span>
+                          )}
                         </td>
                       )}
                       {showEmployerCol && (
                         <td className="px-6 py-5">
-                          <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
-                            {formatAddress(p.employer, 6)}
-                          </span>
+                          {employerCompanyName || employerLogoUrl ? (
+                            <div className="flex items-center gap-2">
+                              {employerLogoUrl && (
+                                <EmployerLogo
+                                  logoUrl={employerLogoUrl}
+                                  fallbackText={employerCompanyName}
+                                  className="h-8 w-8"
+                                />
+                              )}
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                {employerCompanyName && (
+                                  <span className="text-sm font-semibold text-[var(--color-text-primary)]">
+                                    {employerCompanyName}
+                                  </span>
+                                )}
+                                <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
+                                  {formatAddress(p.employer, 6)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
+                              {formatAddress(p.employer, 6)}
+                            </span>
+                          )}
                         </td>
                       )}
                       <td className="px-6 py-5">
@@ -292,7 +412,11 @@ export function Activity() {
                         </a>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-[var(--color-text-secondary)]">
-                        #{p.block_number}
+                        {new Date(p.timestamp).toLocaleTimeString(undefined, {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
                       </td>
                     </tr>
                   );
@@ -351,9 +475,17 @@ export function Activity() {
             <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-6">
               <Card variant="elevated" padding="lg">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-                    <UserCheck className="w-6 h-6 text-emerald-600" />
-                  </div>
+                  {employerLogoUrl ? (
+                    <EmployerLogo
+                      logoUrl={employerLogoUrl}
+                      fallbackText={employerCompanyName}
+                      className="w-12 h-12"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center shrink-0">
+                      <UserCheck className="w-6 h-6 text-emerald-600" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
                       Onboarded
@@ -362,8 +494,15 @@ export function Activity() {
                       </Badge>
                     </h2>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      You were onboarded by employer{' '}
-                      <span className="font-mono font-medium text-gray-700">{formatAddress(employeeProfile.employer, 6)}</span>
+                      You were onboarded by{' '}
+                      {employerCompanyName ? (
+                        <>
+                          <span className="font-semibold text-[var(--color-text-primary)]">{employerCompanyName}</span>
+                          <span className="font-mono text-gray-600"> ({formatAddress(employeeProfile.employer, 6)})</span>
+                        </>
+                      ) : (
+                        <span className="font-mono font-medium text-gray-700">{formatAddress(employeeProfile.employer, 6)}</span>
+                      )}
                       {' '}on{' '}
                       {new Date(employeeProfile.added_at).toLocaleDateString(undefined, {
                         year: 'numeric',
@@ -391,12 +530,24 @@ export function Activity() {
               </Card>
               <Card variant="elevated" padding="md" className="hover:shadow-lg transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-[var(--color-text-primary)] truncate text-sm">{formatAddress(employeeProfile.employer, 4)}</p>
-                    <p className="text-xs text-[var(--color-text-secondary)]">Employer</p>
+                  {employerLogoUrl ? (
+                    <EmployerLogo
+                      logoUrl={employerLogoUrl}
+                      fallbackText={employerCompanyName}
+                      className="w-10 h-10"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                      <Building2 className="w-5 h-5 text-purple-600" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-lg font-bold text-[var(--color-text-primary)] truncate">
+                      {employerCompanyName || formatAddress(employeeProfile.employer, 4)}
+                    </p>
+                    <p className="text-xs text-[var(--color-text-secondary)] font-mono">
+                      {employerCompanyName ? formatAddress(employeeProfile.employer, 6) : 'Employer'}
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -426,6 +577,8 @@ export function Activity() {
                 false,
                 true,
                 'employee',
+                employerCompanyName,
+                employerLogoUrl,
               )}
             </motion.div>
           </>
@@ -449,7 +602,7 @@ export function Activity() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="grid grid-cols-3 gap-4 mb-6"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6"
               >
                 <Card variant="elevated" padding="md" className="hover:shadow-lg transition-shadow">
                   <div className="flex items-center gap-3">
@@ -473,19 +626,78 @@ export function Activity() {
                     </div>
                   </div>
                 </Card>
-                <Card variant="elevated" padding="md" className="hover:shadow-lg transition-shadow">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                      <Shield className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-[var(--color-text-primary)]">FHE</p>
-                      <p className="text-xs text-[var(--color-text-secondary)]">Encryption</p>
-                    </div>
-                  </div>
-                </Card>
               </motion.div>
             )}
+
+            {/* Payroll Volume & Payment Distribution charts */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <Card variant="elevated" padding="lg" className="overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-0.5">Payroll Volume</h3>
+                    <p className="text-xs text-[var(--color-text-tertiary)]">USDC / {TOKEN_CONFIG.symbol} paid per month. Decrypt to show amounts.</p>
+                  </div>
+                  {chartPayments.length > 0 && Object.keys(chartDecryptedByHandle).length === 0 && (
+                    <Button variant="secondary" size="sm" onClick={handleDecryptChart} disabled={!fheReady || chartDecrypting || fheDecrypting} loading={chartDecrypting}>
+                      <Unlock className="h-4 w-4" /> Decrypt for chart
+                    </Button>
+                  )}
+                </div>
+                {chartLoading ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <div className="w-8 h-8 border-2 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin" />
+                  </div>
+                ) : payrollVolumeData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-[var(--color-text-tertiary)] text-sm">No payment data yet</div>
+                ) : payrollVolumeData.every((d) => d.sumUsdc === 0) ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-3 text-[var(--color-text-tertiary)] text-sm">
+                    <p>Click &quot;Decrypt for chart&quot; to show {TOKEN_CONFIG.symbol} paid per month (one signature for all).</p>
+                    <Button variant="secondary" size="sm" onClick={handleDecryptChart} disabled={!fheReady || chartDecrypting || fheDecrypting} loading={chartDecrypting}>
+                      <Unlock className="h-4 w-4" /> Decrypt for chart
+                    </Button>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={payrollVolumeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-light)" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--color-text-tertiary)" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="var(--color-text-tertiary)" tickFormatter={(v) => `$${v}`} />
+                      <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--color-border-light)' }} formatter={(value: number | undefined) => [`$${Number(value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${TOKEN_CONFIG.symbol}`, 'Paid']} labelFormatter={(label) => label} />
+                      <Area type="monotone" dataKey="sumUsdc" stroke="var(--color-primary)" strokeWidth={2} fill="url(#volumeGradient)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </Card>
+              <Card variant="elevated" padding="lg" className="overflow-hidden">
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-0.5">Payment Distribution</h3>
+                <p className="text-xs text-[var(--color-text-tertiary)] mb-4">Crypto assets used for payroll</p>
+                {chartLoading ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <div className="w-8 h-8 border-2 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin" />
+                  </div>
+                ) : paymentDistributionData[0].value === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-[var(--color-text-tertiary)] text-sm">No payments yet</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={paymentDistributionData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
+                        {paymentDistributionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Legend formatter={() => <span className="flex items-center gap-2"><CusdcpLogo size={16} /> cUSDCP</span>} />
+                      <Tooltip formatter={(value: number | undefined) => [`${value ?? 0} payments`, '']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </Card>
+            </motion.div>
 
             {/* Employer Payment History */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: isEmployee ? 0.3 : 0.15 }}>
@@ -500,6 +712,9 @@ export function Activity() {
                 true,
                 false,
                 'employer',
+                undefined,
+                undefined,
+                employerEmployeeNames,
               )}
             </motion.div>
 

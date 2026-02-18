@@ -5,6 +5,7 @@ import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { CONTRACTS, PAYROLL_FACTORY_ABI, PAYROLL_ABI, CONF_TOKEN_ABI } from '../lib/contracts';
 import { useFhevmEncrypt } from './useFhevmEncrypt';
 import { parseAmount } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -31,7 +32,8 @@ export function usePayrollEmployer() {
   const [payrollAddress, setPayrollAddress] = useState<`0x${string}` | null>(null);
   const [localEmployees, setLocalEmployees] = useState<EmployeeForm[]>([]);
   const [onchainEmployees, setOnchainEmployees] = useState<`0x${string}`[]>([]);
-  const [isLoadingPayroll, setIsLoadingPayroll] = useState(false);
+  /** Start true so consumers (e.g. Company profile) don't redirect before first fetch */
+  const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
   const [isOperatorSet, setIsOperatorSet] = useState(false);
 
   /** Direct on-chain read using standalone viem client */
@@ -42,7 +44,6 @@ export function usePayrollEmployer() {
       return;
     }
 
-    console.log('[Payroll] Fetching payroll for', target, 'from factory', CONTRACTS.PAYROLL_FACTORY);
     setIsLoadingPayroll(true);
     try {
       const addr = await sepoliaClient.readContract({
@@ -52,10 +53,8 @@ export function usePayrollEmployer() {
         args: [target],
       });
       const result = addr as `0x${string}`;
-      console.log('[Payroll] getPayroll result:', result);
       setPayrollAddress(result && result !== ZERO_ADDRESS ? result : null);
-    } catch (err) {
-      console.error('[Payroll] readContract failed:', err);
+    } catch {
       setPayrollAddress(null);
     } finally {
       setIsLoadingPayroll(false);
@@ -64,11 +63,11 @@ export function usePayrollEmployer() {
 
   // Auto-fetch when wallet connects or employer changes
   useEffect(() => {
-    console.log('[Payroll] useEffect — isConnected:', isConnected, 'employer:', employer);
     if (isConnected && employer) {
       void fetchPayrollAddress(employer);
     } else {
       setPayrollAddress(null);
+      setIsLoadingPayroll(false);
     }
   }, [isConnected, employer, fetchPayrollAddress]);
 
@@ -87,10 +86,8 @@ export function usePayrollEmployer() {
         functionName: 'isOperator',
         args: [employer, payrollAddress],
       });
-      console.log('[Payroll] isOperator:', result);
       setIsOperatorSet(!!result);
-    } catch (err) {
-      console.error('[Payroll] isOperator check failed:', err);
+    } catch {
       setIsOperatorSet(false);
     }
   }, [employer, payrollAddress]);
@@ -101,46 +98,37 @@ export function usePayrollEmployer() {
     }
   }, [hasPayroll, checkOperator]);
 
-  /** Fetch onboarded employees from on-chain events */
+  /** Fetch employees from Supabase (indexer is source of truth) */
   const fetchEmployees = useCallback(async () => {
-    if (!payrollAddress) return;
+    if (!employer) return;
     try {
-      const logs = await sepoliaClient.getLogs({
-        address: payrollAddress,
-        event: {
-          type: 'event',
-          name: 'EmployeeOnboarded',
-          inputs: [
-            { indexed: true, name: 'employer', type: 'address' },
-            { indexed: true, name: 'employee', type: 'address' },
-            { indexed: false, name: 'encryptedSalary', type: 'bytes32' },
-            { indexed: false, name: 'inputProof', type: 'bytes' },
-            { indexed: false, name: 'signature', type: 'bytes' },
-          ],
-        },
-        fromBlock: 0n,
-        toBlock: 'latest',
-      });
-      const addresses = [...new Set(
-        logs.map((log) => (log as any).args.employee as `0x${string}`)
-      )];
-      console.log('[Payroll] On-chain employees:', addresses);
-      setOnchainEmployees(addresses);
+      const { data, error } = await supabase
+        .from('employees')
+        .select('address')
+        .eq('employer', employer.toLowerCase())
+        .eq('whitelisted', true);
 
-      // Also seed localEmployees if empty (salary unknown from events, use "0")
-      if (localEmployees.length === 0 && addresses.length > 0) {
-        setLocalEmployees(addresses.map((a) => ({ address: a, salary: '0' })));
-      }
-    } catch (err) {
-      console.error('[Payroll] Failed to fetch employees:', err);
+      if (error) return;
+      const list = (data ?? []).map((row: { address: string }) => ({
+        address: row.address,
+        salary: '0',
+      }));
+      setLocalEmployees(list);
+      setOnchainEmployees(list.map((e) => e.address as `0x${string}`));
+    } catch {
+      setLocalEmployees([]);
+      setOnchainEmployees([]);
     }
-  }, [payrollAddress, localEmployees.length]);
+  }, [employer]);
 
   useEffect(() => {
-    if (hasPayroll && payrollAddress) {
+    if (isConnected && employer) {
       void fetchEmployees();
+    } else {
+      setLocalEmployees([]);
+      setOnchainEmployees([]);
     }
-  }, [hasPayroll, payrollAddress, fetchEmployees]);
+  }, [isConnected, employer, fetchEmployees]);
 
   /** Set the Payroll contract as operator on cUSDCP (needed for confidentialTransferFrom) */
   const approvePayrollOperator = useCallback(async () => {
@@ -317,8 +305,7 @@ export function usePayrollEmployer() {
         }
       }
       return handleMap;
-    } catch (err) {
-      console.error('[Payroll] Failed to fetch salary handles:', err);
+    } catch {
       return {};
     }
   }, [payrollAddress]);

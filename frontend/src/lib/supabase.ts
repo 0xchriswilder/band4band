@@ -70,5 +70,16 @@ export interface EmployeeDisplayNameRow {
   employer_address: string;
   employee_address: string;
   name: string;
+  email?: string | null;
+  payment_frequency?: string | null;
+  updated_at: string;
+}
+
+export interface EmployerProfileRow {
+  employer_address: string;
+  company_name: string;
+  industry?: string | null;
+  website?: string | null;
+  logo_url?: string | null;
   updated_at: string;
 }

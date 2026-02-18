@@ -27,6 +27,23 @@ export function parseAmount(amount: string, decimals = 6): bigint {
   return BigInt(integer + paddedFraction);
 }
 
+/**
+ * Convert Imgur page URLs to direct image URLs so <img src> works.
+ * e.g. https://imgur.com/eoTXMlq -> https://i.imgur.com/eoTXMlq.png
+ * Also fix Supabase Storage URLs missing /public/ (e.g. .../object/bucket/... -> .../object/public/bucket/...).
+ */
+export function toDirectImageUrl(url: string | null | undefined): string {
+  if (!url || typeof url !== 'string') return '';
+  let trimmed = url.trim();
+  if (!trimmed) return '';
+  const imgurMatch = trimmed.match(/^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)(?:\.(?:png|jpg|jpeg|gif))?\/?(?:\?.*)?$/i);
+  if (imgurMatch) return `https://i.imgur.com/${imgurMatch[1]}.png`;
+  if (trimmed.includes('/storage/v1/object/') && !trimmed.includes('/object/public/')) {
+    trimmed = trimmed.replace('/storage/v1/object/', '/storage/v1/object/public/');
+  }
+  return trimmed;
+}
+
 /** Turn wallet/transaction errors (e.g. user rejected) into a short, user-friendly message. */
 export function getUserFriendlyErrorMessage(err: unknown, fallback = 'Something went wrong. Please try again.'): string {
   const msg = err instanceof Error ? err.message : String(err ?? '');

@@ -41,10 +41,9 @@ export function useWrapToken() {
       ]);
       setUsdcBalance(bal);
       setAllowance(allow);
-      console.log('[Wrap] USDC balance:', formatUnits(bal, TOKEN_CONFIG.decimals),
-        '| allowance:', formatUnits(allow, TOKEN_CONFIG.decimals));
-    } catch (err) {
-      console.error('[Wrap] Failed to fetch balances:', err);
+    } catch {
+      setUsdcBalance(0n);
+      setAllowance(0n);
     } finally {
       setIsLoading(false);
     }
@@ -84,7 +83,6 @@ export function useWrapToken() {
 
     // Auto-approve if needed
     if (allowance < amount) {
-      console.log('[Wrap] Allowance insufficient, approving...');
       await approveUsdc();
     }
 

@@ -12,16 +12,19 @@ import {
   X,
   Wallet,
   LogOut,
+  Briefcase,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Badge } from '../ui/Badge';
 import { useFhevm } from '../../providers/useFhevmContext';
 import { formatAddress } from '../../lib/utils';
+import { EmployerLogo } from '../EmployerLogo';
+import { useEmployerProfile } from '../../hooks/usePayrollHistory';
 
-const navLinks = [
+const baseNavLinks = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/employer', label: 'Employer Dashboard', icon: Building2 },
-  { to: '/employer/invoices', label: 'Invoices', icon: FileText },
+  { to: '/invoices', label: 'Invoices', icon: FileText },
   { to: '/employee', label: 'Employee Portal', icon: UserCircle },
   { to: '/activity', label: 'Transaction History', icon: BarChart3 },
 ];
@@ -36,7 +39,17 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const { isConnected, address } = useAccount();
   const { disconnect } = useDisconnect();
   const { isReady, isLoading } = useFhevm();
+  const { profile: employerProfile } = useEmployerProfile(address ?? undefined);
   const closeMobile = onMobileClose;
+
+  const navLinks = React.useMemo(() => {
+    const links = [...baseNavLinks];
+    if (isConnected) {
+      const employerIdx = links.findIndex((l) => l.to === '/employer');
+      links.splice(employerIdx + 1, 0, { to: '/company-profile', label: 'Company profile', icon: Briefcase });
+    }
+    return links;
+  }, [isConnected]);
 
   return (
     <>
@@ -145,15 +158,23 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             ) : (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-3 p-2.5 bg-[var(--color-bg-light)] rounded-xl border border-[var(--color-primary)]/10">
-                  <div className="h-10 w-10 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
-                    <Wallet className="h-5 w-5 text-[var(--color-primary)]" />
-                  </div>
+                  {employerProfile?.logo_url ? (
+                    <EmployerLogo
+                      logoUrl={employerProfile.logo_url}
+                      fallbackText={employerProfile?.company_name}
+                      className="h-10 w-10"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-lg bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
+                      <Wallet className="h-5 w-5 text-[var(--color-primary)]" />
+                    </div>
+                  )}
                   <div className="flex flex-col overflow-hidden min-w-0 flex-1">
                     <p className="text-xs font-bold truncate text-[var(--color-text-primary)]">
                       {address ? formatAddress(address, 6) : '—'}
                     </p>
-                    <p className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">
-                      Connected
+                    <p className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                      {employerProfile?.company_name || 'Connected'}
                     </p>
                   </div>
                 </div>

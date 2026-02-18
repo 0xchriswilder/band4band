@@ -38,10 +38,8 @@ export function useConfidentialBalance() {
         args: [address],
       });
       const h = result as string;
-      console.log('[cUSDCP] confidentialBalanceOf(', address, ') =>', h);
       setHandle(h && h !== ZERO_HANDLE ? h : null);
-    } catch (err) {
-      console.error('[cUSDCP] Failed to read balance handle:', err);
+    } catch {
       setHandle(null);
     } finally {
       setIsLoadingHandle(false);

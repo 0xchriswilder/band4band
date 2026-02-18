@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
-import { Landing, EmployerDashboard, EmployerInvoices, EmployeeDashboard, Activity } from './pages';
+import { Landing, EmployerDashboard, EmployerInvoices, EmployeeDashboard, InvoicesPage, Activity, CompanyProfilePage } from './pages';
 
 export default function App() {
   return (
@@ -9,10 +9,26 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route
+          path="/company-profile"
+          element={
+            <AppLayout>
+              <CompanyProfilePage />
+            </AppLayout>
+          }
+        />
+        <Route
           path="/employer"
           element={
             <AppLayout>
               <EmployerDashboard />
+            </AppLayout>
+          }
+        />
+        <Route
+          path="/invoices"
+          element={
+            <AppLayout>
+              <InvoicesPage />
             </AppLayout>
           }
         />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,8 +33,12 @@ import {
   Trash2,
   X,
   FileText,
+  Calendar,
+  Mail,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { CusdcpLogo } from '../components/icons/CusdcpLogo';
+import { CusdtLogo } from '../components/icons/CusdtLogo';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
@@ -52,6 +56,21 @@ const fadeUp = {
   hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
 };
+
+type ImportPreviewRow = {
+  address: string;
+  salary: string;
+  name?: string;
+  email?: string;
+  paymentFrequency?: 'monthly' | 'biweekly' | 'weekly';
+};
+
+function normalizeFrequency(v: string): 'monthly' | 'biweekly' | 'weekly' {
+  const s = (v || '').trim().toLowerCase();
+  if (s === 'biweekly' || s === 'bi-weekly') return 'biweekly';
+  if (s === 'weekly') return 'weekly';
+  return 'monthly';
+}
 
 export function EmployerDashboard() {
   const { isConnected, address } = useAccount();
@@ -107,8 +126,13 @@ export function EmployerDashboard() {
   const [employeeName, setEmployeeName] = useState('');
   const [salary, setSalary] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [importCount, setImportCount] = useState(0);
+  const [importPreviewRows, setImportPreviewRows] = useState<ImportPreviewRow[] | null>(null);
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual');
+  const [onboardToken, setOnboardToken] = useState<'cUSDCP' | 'cUSDT'>('cUSDCP');
+  const [paymentFrequency, setPaymentFrequency] = useState<'monthly' | 'biweekly' | 'weekly'>('monthly');
+  const [employeeEmail, setEmployeeEmail] = useState('');
 
   // Employer salary decrypt state (handles from Supabase; decrypt with CONF_TOKEN like Activity/Employee)
   const [decryptedSalaries, setDecryptedSalaries] = useState<Record<string, bigint>>({});
@@ -120,6 +144,9 @@ export function EmployerDashboard() {
   // Edit salary modal
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
   const [editSalaryValue, setEditSalaryValue] = useState('');
+  const [editPaymentFrequency, setEditPaymentFrequency] = useState<'monthly' | 'biweekly' | 'weekly'>('monthly');
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
 
   // Payroll confirmation modal
   const [showPayrollConfirm, setShowPayrollConfirm] = useState(false);
@@ -127,18 +154,23 @@ export function EmployerDashboard() {
   const [invoiceMonth, setInvoiceMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { invoicedAddresses } = useEmployerInvoices(invoiceMonth);
   const { handles: salaryHandles, reload: reloadPaymentHandles } = useEmployerLatestPaymentHandles();
-  const { names: employeeNames, upsertName: upsertEmployeeName, reload: reloadEmployeeNames } = useEmployerEmployeeNames();
+  const { names: employeeNames, frequencies: employeeFrequencies, emails: employeeEmails, upsertName: upsertEmployeeName, reload: reloadEmployeeNames } = useEmployerEmployeeNames();
 
   const handleFileImport = async (file: File) => {
     setIsImporting(true);
-    setImportCount(0);
+    setImportPreviewRows(null);
+    setShowImportPreview(false);
     try {
       const ext = file.name.toLowerCase().split('.').pop();
-      const rows: { address: string; salary: string; name?: string }[] = [];
+      const rows: ImportPreviewRow[] = [];
 
       const getName = (row: Record<string, unknown>) => {
         const v = row.name ?? row.employee_name ?? row.Name ?? row.EmployeeName ?? '';
         return typeof v === 'string' ? v.trim() : String(v ?? '').trim();
+      };
+      const getFrequency = (row: Record<string, unknown>) => {
+        const v = row.payment_frequency ?? row.paymentFrequency ?? row.frequency ?? row.Frequency ?? '';
+        return normalizeFrequency(typeof v === 'string' ? v : String(v ?? ''));
       };
 
       if (ext === 'csv') {
@@ -155,7 +187,9 @@ export function EmployerDashboard() {
           const salary = row.salary ?? row.Salary ?? '';
           if (address && salary) {
             const name = (row.name ?? row.employee_name ?? row.Name ?? row.EmployeeName ?? '').trim();
-            rows.push({ address: address.trim(), salary: String(salary).trim(), ...(name ? { name } : {}) });
+            const email = (row.email ?? row.Email ?? '').trim();
+            const paymentFrequency = normalizeFrequency(row.payment_frequency ?? row.paymentFrequency ?? row.frequency ?? '');
+            rows.push({ address: address.trim(), salary: String(salary).trim(), ...(name ? { name } : {}), ...(email ? { email } : {}), paymentFrequency });
           }
         }
       } else if (ext === 'xlsx' || ext === 'xls') {
@@ -169,22 +203,40 @@ export function EmployerDashboard() {
           const salary = row.salary ?? row.Salary;
           if (address && salary) {
             const name = getName(row);
-            rows.push({ address: String(address).trim(), salary: String(salary).trim(), ...(name ? { name } : {}) });
+            const email = (row.email ?? row.Email ?? ''); const emailStr = typeof email === 'string' ? email.trim() : '';
+            const paymentFrequency = getFrequency(row);
+            rows.push({ address: String(address).trim(), salary: String(salary).trim(), ...(name ? { name } : {}), ...(emailStr ? { email: emailStr } : {}), paymentFrequency });
           }
         }
       }
 
       if (rows.length > 0) {
-        setImportCount(rows.length);
-        await batchOnboardEmployees(rows.map(({ address, salary }) => ({ address, salary })));
-        for (const r of rows) {
-          if (r.name) await upsertEmployeeName(r.address, r.name).catch(() => {});
-        }
-        reloadEmployeeNames();
-        toast.success(`${rows.length} employee(s) onboarded successfully`);
+        setImportPreviewRows(rows);
+        setShowImportPreview(true);
+      } else {
+        toast.error('No valid rows found. Need at least address and salary columns.');
       }
     } catch (err: any) {
       toast.error(getUserFriendlyErrorMessage(err, 'Import failed'));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleConfirmImportPreview = async () => {
+    if (!importPreviewRows || importPreviewRows.length === 0) return;
+    setIsImporting(true);
+    try {
+      await batchOnboardEmployees(importPreviewRows.map(({ address, salary }) => ({ address, salary })));
+      for (const r of importPreviewRows) {
+        await upsertEmployeeName(r.address, r.name || '', r.paymentFrequency || 'monthly', r.email || '').catch(() => {});
+      }
+      reloadEmployeeNames();
+      setShowImportPreview(false);
+      setImportPreviewRows(null);
+      toast.success(`${importPreviewRows.length} employee(s) onboarded successfully`);
+    } catch (err: any) {
+      toast.error(getUserFriendlyErrorMessage(err, 'Onboard failed'));
     } finally {
       setIsImporting(false);
     }
@@ -194,12 +246,11 @@ export function EmployerDashboard() {
     if (!employeeAddress || !salary) return;
     try {
       await onboardEmployee(employeeAddress, salary);
-      if (employeeName.trim()) {
-        await upsertEmployeeName(employeeAddress, employeeName.trim());
-      }
+      await upsertEmployeeName(employeeAddress, employeeName.trim(), paymentFrequency, employeeEmail.trim());
       toast.success('Employee onboarded successfully');
       setEmployeeAddress('');
       setEmployeeName('');
+      setEmployeeEmail('');
       setSalary('');
     } catch (err: any) {
       toast.error(getUserFriendlyErrorMessage(err, 'Onboard failed'));
@@ -207,14 +258,18 @@ export function EmployerDashboard() {
   };
 
   const handleEditSalary = async () => {
-    if (!editingEmployee || !editSalaryValue) return;
+    if (!editingEmployee) return;
     try {
-      await editEmployeeSalary(editingEmployee, editSalaryValue);
-      toast.success('Salary updated successfully');
+      if (editSalaryValue && Number(editSalaryValue) > 0) {
+        await editEmployeeSalary(editingEmployee, editSalaryValue);
+      }
+      await upsertEmployeeName(editingEmployee, editName.trim(), editPaymentFrequency, editEmail.trim());
+      reloadEmployeeNames();
+      toast.success(editSalaryValue && Number(editSalaryValue) > 0 ? 'Salary and profile updated' : 'Profile updated');
       setEditingEmployee(null);
       setEditSalaryValue('');
     } catch (err: any) {
-      toast.error(getUserFriendlyErrorMessage(err, 'Edit salary failed'));
+      toast.error(getUserFriendlyErrorMessage(err, 'Update failed'));
     }
   };
 
@@ -439,7 +494,8 @@ export function EmployerDashboard() {
               </motion.div>
             )}
 
-            {/* Wrap + Unwrap — side-by-side to save space */}
+            {/* Wrap + Unwrap — only when payroll is registered */}
+            {hasPayroll && (
             <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card variant="elevated" padding="lg" className="flex flex-col">
                 <div className="flex items-center justify-between mb-3">
@@ -510,8 +566,10 @@ export function EmployerDashboard() {
                 </div>
               </Card>
             </motion.div>
+            )}
 
-            {/* Onboard Employees */}
+            {/* Onboard Employees — only when payroll is registered */}
+            {hasPayroll && (
             <motion.div initial="hidden" animate="visible" variants={fadeUp}>
               <Card variant="elevated" padding="lg">
                 <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-5 flex items-center gap-2">
@@ -525,8 +583,44 @@ export function EmployerDashboard() {
                   {activeTab === 'manual' ? (
                     <motion.div key="manual" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
                       <Input label="Employee Name" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="e.g. Jane Doe" hint="Optional but recommended for identifying workers." icon={<Users className="h-4 w-4" />} />
+                      <Input label="Email address" value={employeeEmail} onChange={(e) => setEmployeeEmail(e.target.value)} type="email" placeholder="e.g. jane@company.com" icon={<Mail className="h-4 w-4" />} />
                       <Input label="Employee Wallet Address" value={employeeAddress} onChange={(e) => setEmployeeAddress(e.target.value)} placeholder="0x..." icon={<Hash className="h-4 w-4" />} />
-                      <Input label={`Monthly Salary (${TOKEN_CONFIG.underlyingSymbol})`} value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="2500.00" hint="Amount in USDC (6 decimals). Will be encrypted before submitting." icon={<DollarSign className="h-4 w-4" />} />
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5">Salary Amount</label>
+                        <div className="flex gap-2">
+                          <div className="flex-1 relative">
+                            <Input value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="2500.00" hint="Amount (6 decimals). Will be encrypted before submitting." icon={<DollarSign className="h-4 w-4" />} />
+                          </div>
+                          <div className="flex gap-1.5 shrink-0">
+                            <button type="button" onClick={() => setOnboardToken('cUSDCP')} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all ${onboardToken === 'cUSDCP' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border-light)] hover:border-[var(--color-primary)]/30'}`} title="cUSDCP">
+                              <CusdcpLogo size={20} />
+                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">cUSDCP</span>
+                            </button>
+                            <button type="button" onClick={() => setOnboardToken('cUSDT')} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all ${onboardToken === 'cUSDT' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border-light)] hover:border-[var(--color-primary)]/30 opacity-75'}`} title="cUSDT (coming soon)">
+                              <CusdtLogo size={20} />
+                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">cUSDT</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Payment Frequency</label>
+                        <div className="flex gap-2">
+                          {(['monthly', 'biweekly', 'weekly'] as const).map((freq) => (
+                            <button key={freq} type="button" onClick={() => setPaymentFrequency(freq)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all ${paymentFrequency === freq ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]' : 'border-[var(--color-border-light)] hover:border-[var(--color-primary)]/30 text-[var(--color-text-secondary)]'}`}>
+                              <Calendar className="h-4 w-4" />
+                              <span className="text-sm font-medium capitalize">{freq === 'biweekly' ? 'Bi-weekly' : freq === 'monthly' ? 'Monthly' : 'Weekly'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/80 border border-emerald-200/60">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-800">Privacy Protected</p>
+                          <p className="text-xs text-emerald-700/90 mt-0.5">All payroll transactions for this employee will be processed with maximum privacy.</p>
+                        </div>
+                      </div>
                       <Button className="w-full" onClick={handleOnboard} disabled={!hasPayroll || isWriting || isEncrypting || !employeeAddress || !salary} loading={isEncrypting || isWriting}>
                         {isEncrypting ? 'Encrypting salary...' : 'Onboard Employee'}
                       </Button>
@@ -536,16 +630,16 @@ export function EmployerDashboard() {
                       <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-[var(--color-primary-light)] transition-colors">
                         <FileSpreadsheet className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                         <p className="text-sm font-medium text-[var(--color-text-primary)] mb-1">Drop a CSV or XLSX file</p>
-                        <p className="text-xs text-[var(--color-text-tertiary)] mb-4">Required: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">address</code>, <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">salary</code>. Optional: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">name</code> (or <code className="bg-gray-100 px-1.5 py-0.5 rounded">employee_name</code>)</p>
-                        <label>
-                          <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file && hasPayroll && !isWriting && !isEncrypting) void handleFileImport(file); }} />
-                          <Button variant="secondary" size="sm" onClick={() => {}} className="pointer-events-none"><Upload className="h-4 w-4" /> Choose file</Button>
-                        </label>
+                        <p className="text-xs text-[var(--color-text-tertiary)] mb-4">Required: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">address</code>, <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[var(--color-primary-dark)]">salary</code>. Optional: <code className="bg-gray-100 px-1.5 py-0.5 rounded">name</code>, <code className="bg-gray-100 px-1.5 py-0.5 rounded">email</code>, <code className="bg-gray-100 px-1.5 py-0.5 rounded">payment_frequency</code> (monthly / biweekly / weekly)</p>
+                        <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file && hasPayroll && !isWriting && !isEncrypting) void handleFileImport(file); e.target.value = ''; }} />
+                        <Button variant="secondary" size="sm" type="button" onClick={() => fileInputRef.current?.click()} disabled={!hasPayroll || isWriting || isEncrypting}>
+                          <Upload className="h-4 w-4" /> Choose file
+                        </Button>
                       </div>
-                      {isImporting && (
+                      {isImporting && !showImportPreview && (
                         <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--color-primary)]/5">
                           <svg className="animate-spin h-4 w-4 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                          <span className="text-sm font-medium text-[var(--color-primary-dark)]">Encrypting &amp; batch onboarding {importCount} employee{importCount !== 1 ? 's' : ''}...</span>
+                          <span className="text-sm font-medium text-[var(--color-primary-dark)]">Parsing file...</span>
                         </div>
                       )}
                     </motion.div>
@@ -553,6 +647,7 @@ export function EmployerDashboard() {
                 </AnimatePresence>
               </Card>
             </motion.div>
+            )}
 
           </div>
 
@@ -602,14 +697,22 @@ export function EmployerDashboard() {
           </motion.div>
         </div>
 
-        {/* Employees table — full width row for more space, no horizontal scroll */}
+        {/* Employees table — only when payroll is registered */}
+        {hasPayroll && (
         <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mt-6">
-          <Card variant="elevated" padding="lg">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-                <Users className="h-5 w-5 text-[var(--color-primary)]" /> Employees
-                {localEmployees.length > 0 && <Badge variant="primary" size="sm">{localEmployees.length}</Badge>}
-              </h2>
+          <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] shadow-sm p-0">
+            <div className="bg-gradient-to-r from-[var(--color-primary)]/5 to-transparent border-b border-[var(--color-border-light)] px-6 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-[var(--color-primary)]" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Employees</h2>
+                    <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">Manage pay amounts and run payroll</p>
+                  </div>
+                  {localEmployees.length > 0 && <Badge variant="primary" size="sm" className="ml-1">{localEmployees.length}</Badge>}
+                </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {(() => {
                   const addressesToDecrypt = localEmployees
@@ -642,8 +745,11 @@ export function EmployerDashboard() {
                           setPaySalaries((prev) => {
                             const next = { ...prev };
                             for (const [handle, value] of Object.entries(result)) {
-                              const addr = handleToAddr[handle];
-                              if (addr) next[addr] = formatAmount(value, TOKEN_CONFIG.decimals);
+                              const addrLower = handleToAddr[handle];
+                              if (addrLower) {
+                                const emp = localEmployees.find((ee) => ee.address.toLowerCase() === addrLower);
+                                if (emp) next[emp.address] = formatAmount(value, TOKEN_CONFIG.decimals);
+                              }
                             }
                             return next;
                           });
@@ -669,35 +775,41 @@ export function EmployerDashboard() {
                   <Play className="h-4 w-4" /> Run Payroll
                 </Button>
               </div>
+              </div>
             </div>
 
             {onchainEmployees.length === 0 && localEmployees.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 mb-4"><Users className="h-8 w-8 text-gray-300" /></div>
-                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No employees yet</h3>
-                <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">Add employees manually or import from a spreadsheet to get started.</p>
+              <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-primary)]/5 flex items-center justify-center mb-5">
+                  <Users className="h-10 w-10 text-[var(--color-primary)]/70" />
+                </div>
+                <h3 className="text-xl font-bold text-[var(--color-text-primary)] mb-2">No employees yet</h3>
+                <p className="text-sm text-[var(--color-text-secondary)] max-w-sm mb-1">Add employees manually or import from a spreadsheet to get started.</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">Use the <strong>Onboard Employees</strong> section above to add your first team member.</p>
               </div>
             ) : (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                  <p className="text-xs text-[var(--color-text-secondary)]">Enter the salary amount for each employee before running payroll. Click the lock icon to decrypt on-chain salary (uses latest payment from history).</p>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-[var(--color-text-tertiary)]">Invoice month:</label>
-                    <input
-                      type="month"
-                      value={invoiceMonth}
-                      onChange={(e) => setInvoiceMonth(e.target.value)}
-                      className="rounded-lg border border-[var(--color-border-input)] bg-white px-2 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
-                    />
-                    <Link to="/employer/invoices" className="text-xs font-medium text-[var(--color-primary)] hover:underline flex items-center gap-1">
-                      <FileText className="h-3.5 w-3.5" /> View all invoices
-                    </Link>
+                <div className="px-6 pt-4 pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-[var(--color-text-secondary)]">Enter the salary amount for each employee before running payroll. Click the lock icon to decrypt on-chain salary (uses latest payment from history).</p>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-[var(--color-text-tertiary)]">Invoice month:</label>
+                      <input
+                        type="month"
+                        value={invoiceMonth}
+                        onChange={(e) => setInvoiceMonth(e.target.value)}
+                        className="rounded-lg border border-[var(--color-border-input)] bg-white px-2 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
+                      />
+                      <Link to="/employer/invoices" className="text-xs font-medium text-[var(--color-primary)] hover:underline flex items-center gap-1">
+                        <FileText className="h-3.5 w-3.5" /> View all invoices
+                      </Link>
+                    </div>
                   </div>
                 </div>
-                <div className="rounded-xl border border-gray-200">
+                <div className="mx-4 mb-4 rounded-xl border border-[var(--color-border-light)] overflow-hidden bg-white">
                   <table className="w-full">
                           <thead>
-                            <tr className="bg-gray-50">
+                            <tr className="bg-[var(--color-bg-light)]">
                               <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">#</th>
                               <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Name</th>
                               <th className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Address</th>
@@ -707,7 +819,7 @@ export function EmployerDashboard() {
                               <th className="px-4 py-3 text-right text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-100">
+                          <tbody className="divide-y divide-[var(--color-border-light)]">
                             {localEmployees.map((e, i) => {
                               const addrLower = e.address.toLowerCase();
                               const hasHandle = !!salaryHandles[addrLower];
@@ -715,10 +827,15 @@ export function EmployerDashboard() {
                               const hasInvoice = invoicedAddresses.has(addrLower);
 
                               return (
-                                <tr key={`${e.address}-${i}`} className="hover:bg-[#f4eee6]/50 transition-colors">
+                                <tr key={`${e.address}-${i}`} className="hover:bg-[var(--color-primary)]/5 transition-colors">
                                   <td className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">{i + 1}</td>
                                   <td className="px-4 py-3">
-                                    <span className="text-sm font-medium text-[var(--color-text-primary)]">{employeeNames[addrLower] || '—'}</span>
+                                    <div>
+                                      <span className="text-sm font-medium text-[var(--color-text-primary)]">{employeeNames[addrLower] || '—'}</span>
+                                      {employeeFrequencies[addrLower] && (
+                                        <span className="block text-[10px] text-[var(--color-text-tertiary)] capitalize mt-0.5">{employeeFrequencies[addrLower] === 'biweekly' ? 'Bi-weekly' : employeeFrequencies[addrLower]}</span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-4 py-3">
                                     <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">{formatAddress(e.address, 6)}</span>
@@ -773,7 +890,7 @@ export function EmployerDashboard() {
                                       >
                                         <DollarSign className="h-3.5 w-3.5" /> Pay
                                       </Button>
-                                      <Button variant="ghost" size="sm" title="Edit salary" onClick={() => { setEditingEmployee(e.address); setEditSalaryValue(''); }}>
+                                      <Button variant="ghost" size="sm" title="Edit salary" onClick={() => { setEditingEmployee(e.address); setEditSalaryValue(''); setEditName(employeeNames[addrLower] ?? ''); setEditEmail(employeeEmails[addrLower] ?? ''); const freq = employeeFrequencies[addrLower]; setEditPaymentFrequency((freq === 'biweekly' || freq === 'weekly' ? freq : 'monthly')); }}>
                                         <Pencil className="h-3.5 w-3.5" />
                                       </Button>
                                       <Button variant="ghost" size="sm" title="Remove employee" onClick={() => handleRemoveEmployee(e.address)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -791,6 +908,7 @@ export function EmployerDashboard() {
             )}
           </Card>
         </motion.div>
+        )}
 
       {/* Edit Salary Modal */}
       <AnimatePresence>
@@ -801,12 +919,72 @@ export function EmployerDashboard() {
                 <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Edit Salary</h3>
                 <button onClick={() => setEditingEmployee(null)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5 text-[var(--color-text-tertiary)]" /></button>
               </div>
-              <p className="text-sm text-[var(--color-text-secondary)] mb-4">Update the encrypted salary for <span className="font-mono font-medium">{formatAddress(editingEmployee, 6)}</span>.</p>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-4">Update the encrypted salary and profile for <span className="font-mono font-medium">{formatAddress(editingEmployee, 6)}</span>.</p>
+              <Input label="Name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="e.g. Jane Doe" icon={<Users className="h-4 w-4" />} />
+              <Input label="Email address" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} type="email" placeholder="e.g. jane@company.com" icon={<Mail className="h-4 w-4" />} />
               <Input label={`New Salary (${TOKEN_CONFIG.underlyingSymbol})`} type="number" placeholder="3000.00" step="0.01" min="0" value={editSalaryValue} onChange={(e) => setEditSalaryValue(e.target.value)} icon={<DollarSign className="h-4 w-4" />} />
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Payment frequency</label>
+                <div className="flex gap-2">
+                  {(['monthly', 'biweekly', 'weekly'] as const).map((freq) => (
+                    <button key={freq} type="button" onClick={() => setEditPaymentFrequency(freq)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all ${editPaymentFrequency === freq ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]' : 'border-[var(--color-border-light)] hover:border-[var(--color-primary)]/30 text-[var(--color-text-secondary)]'}`}>
+                      <Calendar className="h-4 w-4" />
+                      <span className="text-sm font-medium capitalize">{freq === 'biweekly' ? 'Bi-weekly' : freq === 'monthly' ? 'Monthly' : 'Weekly'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex gap-3 mt-6">
                 <Button variant="secondary" className="flex-1" onClick={() => setEditingEmployee(null)}>Cancel</Button>
-                <Button className="flex-1" onClick={handleEditSalary} disabled={!editSalaryValue || Number(editSalaryValue) <= 0 || isWriting || isEncrypting} loading={isWriting || isEncrypting}>
+                <Button className="flex-1" onClick={handleEditSalary} disabled={isWriting || isEncrypting} loading={isWriting || isEncrypting}>
                   <Pencil className="h-4 w-4" /> Update Salary
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Import Preview Modal — confirm before onboarding */}
+      <AnimatePresence>
+        {showImportPreview && importPreviewRows && importPreviewRows.length > 0 && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Import preview</h3>
+                <button type="button" onClick={() => { setShowImportPreview(false); setImportPreviewRows(null); }} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5 text-[var(--color-text-tertiary)]" /></button>
+              </div>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-4">Review the rows below. Click <strong>Onboard</strong> to add these employees to your payroll.</p>
+              <div className="rounded-xl border border-gray-200 overflow-auto flex-1 min-h-0 mb-4">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase">Address</th>
+                      <th className="px-4 py-2 text-right text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase">Salary</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase">Name</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase">Email</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase">Frequency</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {importPreviewRows.map((r, i) => (
+                      <tr key={`${r.address}-${i}`} className="hover:bg-[var(--color-primary)]/5">
+                        <td className="px-4 py-2 font-mono text-[var(--color-text-primary)]">{formatAddress(r.address, 6)}</td>
+                        <td className="px-4 py-2 text-right font-medium text-[var(--color-text-primary)]">{r.salary}</td>
+                        <td className="px-4 py-2 text-[var(--color-text-secondary)]">{r.name || '—'}</td>
+                        <td className="px-4 py-2 text-[var(--color-text-secondary)]">{r.email || '—'}</td>
+                        <td className="px-4 py-2 text-[var(--color-text-secondary)] capitalize">{r.paymentFrequency === 'biweekly' ? 'Bi-weekly' : r.paymentFrequency === 'weekly' ? 'Weekly' : 'Monthly'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" className="flex-1" onClick={() => { setShowImportPreview(false); setImportPreviewRows(null); }} disabled={isImporting}>
+                  Cancel
+                </Button>
+                <Button className="flex-1" onClick={handleConfirmImportPreview} disabled={isImporting} loading={isImporting}>
+                  <UserPlus className="h-4 w-4" /> Onboard {importPreviewRows.length} employee{importPreviewRows.length !== 1 ? 's' : ''}
                 </Button>
               </div>
             </motion.div>

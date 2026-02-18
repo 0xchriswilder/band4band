@@ -30,13 +30,14 @@ import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
 import { useFhevmEncrypt } from '../hooks/useFhevmEncrypt';
-import { useEmployeePaymentHistory, useEmployeeProfile, useSubmitEmployeeInvoice } from '../hooks/usePayrollHistory';
+import { useEmployeePaymentHistory, useEmployeeProfile, useSubmitEmployeeInvoice, useEmployeeInvoices, useEmployerCompanyName } from '../hooks/usePayrollHistory';
 import { useConfidentialBalance } from '../hooks/useConfidentialBalance';
 import { useWrapToken } from '../hooks/useWrapToken';
 import { useFhevm } from '../providers/useFhevmContext';
 import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
 import { formatAddress, formatAmount, parseAmount, getUserFriendlyErrorMessage } from '../lib/utils';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
+import { EmployerLogo } from '../components/EmployerLogo';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -52,6 +53,8 @@ export function EmployeeDashboard() {
   const { employee, isEmployee, isLoading: employeeLoading } = useEmployeeProfile();
   const { payments, total: paymentCount, isLoading, reload } = useEmployeePaymentHistory();
   const { submit: submitInvoice, isSubmitting: isSubmittingInvoice, error: invoiceError } = useSubmitEmployeeInvoice();
+  const { invoices: myInvoices, isLoading: myInvoicesLoading, reload: reloadMyInvoices } = useEmployeeInvoices();
+  const { companyName: employerCompanyName, logoUrl: employerLogoUrl } = useEmployerCompanyName(employee?.employer);
 
   const {
     hasBalance: hasCusdcpBalance,
@@ -365,6 +368,7 @@ export function EmployeeDashboard() {
                       toast.success('Invoice submitted');
                       setInvoiceName('');
                       setInvoiceRole('');
+                      reloadMyInvoices();
                     } else {
                       toast.error(invoiceError || 'Submit failed');
                     }
@@ -375,6 +379,59 @@ export function EmployeeDashboard() {
                   <FileText className="h-4 w-4" /> Submit Invoice
                 </Button>
               </div>
+
+              {myInvoices.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-[var(--color-border-light)]">
+                  <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-3">My Invoices</h3>
+                  {myInvoicesLoading ? (
+                    <p className="text-xs text-[var(--color-text-tertiary)]">Loading…</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {myInvoices.map((inv) => {
+                        const monthLabel = inv.month_due ? new Date(inv.month_due + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : inv.month_due;
+                        const isPaid = !!inv.paid_at;
+                        return (
+                          <li
+                            key={`${inv.employee_address}-${inv.month_due}`}
+                            className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-[var(--color-bg-light)]"
+                          >
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium text-[var(--color-text-primary)]">{monthLabel}</span>
+                              {inv.data?.name && (
+                                <span className="text-xs text-[var(--color-text-secondary)] ml-2">
+                                  {inv.data.name}
+                                  {inv.data?.role ? ` · ${inv.data.role}` : ''}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end gap-0.5 shrink-0">
+                              {isPaid ? (
+                                <>
+                                  <Badge variant="success" size="sm">
+                                    <CheckCircle2 className="h-3 w-3" /> Paid
+                                  </Badge>
+                                  {inv.paid_tx_hash && (
+                                    <a
+                                      href={`https://sepolia.etherscan.io/tx/${inv.paid_tx_hash}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] font-mono text-[var(--color-primary)] hover:underline"
+                                    >
+                                      Tx: {inv.paid_tx_hash.slice(0, 10)}...
+                                    </a>
+                                  )}
+                                </>
+                              ) : (
+                                <Badge variant="default" size="sm">Pending</Badge>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
             </Card>
           </motion.div>
         )}
@@ -576,7 +633,7 @@ export function EmployeeDashboard() {
                               <Badge variant="success" size="sm">Decrypted</Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-[var(--color-text-tertiary)] mt-0.5">
+                          <div className="flex items-center gap-3 text-xs text-[var(--color-text-tertiary)] mt-0.5 flex-wrap">
                             <span>
                               {new Date(p.timestamp).toLocaleDateString(undefined, {
                                 year: 'numeric',
@@ -585,7 +642,17 @@ export function EmployeeDashboard() {
                               })}
                             </span>
                             <span>&middot;</span>
-                            <span>From: {formatAddress(p.employer, 4)}</span>
+                            <span className="flex items-center gap-1.5">
+                              From:{' '}
+                              {employerLogoUrl && (
+                                <EmployerLogo
+                                  logoUrl={employerLogoUrl}
+                                  fallbackText={employerCompanyName}
+                                  className="h-4 w-4"
+                                />
+                              )}
+                              {employerCompanyName ? `${employerCompanyName} (${formatAddress(p.employer, 4)})` : formatAddress(p.employer, 4)}
+                            </span>
                             <span>&middot;</span>
                             <a
                               href={`https://sepolia.etherscan.io/tx/${p.tx_hash}`}
