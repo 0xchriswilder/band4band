@@ -1,22 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { useEmployeeProfile, useEmployeeInvoices } from '../hooks/usePayrollHistory';
+import { useEmployeeProfile, useEmployeeInvoices, useEmployerCompanyName } from '../hooks/usePayrollHistory';
 import { usePayrollEmployer } from '../hooks/usePayrollEmployer';
 import { EmployerInvoices } from './EmployerInvoices';
 import { useAccount } from 'wagmi';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
+import { PaidInvoicePaySlipCard } from '../features/payroll/components/PaidInvoicePaySlipCard';
 
 /**
  * Role-aware Invoices page: employees see "My Invoices", employers see the employer invoice list.
  */
 export function InvoicesPage() {
-  const { isConnected } = useAccount();
-  const { isEmployee, isLoading: employeeLoading } = useEmployeeProfile();
+  const { isConnected, address } = useAccount();
+  const { employee, isEmployee, isLoading: employeeLoading } = useEmployeeProfile();
   const { hasPayroll } = usePayrollEmployer();
   const { invoices, isLoading: invoicesLoading } = useEmployeeInvoices();
+  const { companyName: employerCompanyName } = useEmployerCompanyName(employee?.employer);
+  const [selectedPaidInvoice, setSelectedPaidInvoice] = useState<typeof invoices[0] | null>(null);
 
   if (!isConnected) {
     return (
@@ -91,7 +94,11 @@ export function InvoicesPage() {
                 return (
                   <li
                     key={`${inv.employee_address}-${inv.month_due}`}
-                    className="flex items-center justify-between gap-4 py-3 px-4 rounded-xl bg-[var(--color-bg-light)]"
+                    role={isPaid ? 'button' : undefined}
+                    tabIndex={isPaid ? 0 : undefined}
+                    onClick={() => isPaid && setSelectedPaidInvoice(inv)}
+                    onKeyDown={(e) => isPaid && (e.key === 'Enter' || e.key === ' ') && setSelectedPaidInvoice(inv)}
+                    className={`flex items-center justify-between gap-4 py-3 px-4 rounded-xl transition-colors ${isPaid ? 'bg-[var(--color-bg-light)] hover:bg-[var(--color-primary)]/10 cursor-pointer' : 'bg-[var(--color-bg-light)]'}`}
                   >
                     <div className="min-w-0">
                       <span className="font-medium text-[var(--color-text-primary)]">{monthLabel}</span>
@@ -114,6 +121,7 @@ export function InvoicesPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[10px] font-mono text-[var(--color-primary)] hover:underline"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               Tx: {inv.paid_tx_hash.slice(0, 10)}...
                             </a>
@@ -127,6 +135,16 @@ export function InvoicesPage() {
                 );
               })}
             </ul>
+          )}
+          {selectedPaidInvoice && address && (
+            <div className="mt-4">
+              <PaidInvoicePaySlipCard
+                invoice={selectedPaidInvoice}
+                employerName={employerCompanyName ?? null}
+                employeeAddress={address}
+                onClose={() => setSelectedPaidInvoice(null)}
+              />
+            </div>
           )}
         </Card>
       </div>

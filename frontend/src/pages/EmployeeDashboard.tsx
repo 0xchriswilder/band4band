@@ -38,6 +38,9 @@ import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
 import { formatAddress, formatAmount, parseAmount, getUserFriendlyErrorMessage } from '../lib/utils';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
 import { EmployerLogo } from '../components/EmployerLogo';
+import { ProfileCompleteBadge } from '../features/payroll/components/ProfileCompleteBadge';
+import { YtdCard } from '../features/payroll/components/YtdCard';
+import { PayStubButton } from '../features/payroll/components/PayStubButton';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -54,7 +57,7 @@ export function EmployeeDashboard() {
   const { payments, total: paymentCount, isLoading, reload } = useEmployeePaymentHistory();
   const { submit: submitInvoice, isSubmitting: isSubmittingInvoice, error: invoiceError } = useSubmitEmployeeInvoice();
   const { invoices: myInvoices, isLoading: myInvoicesLoading, reload: reloadMyInvoices } = useEmployeeInvoices();
-  const { companyName: employerCompanyName, logoUrl: employerLogoUrl } = useEmployerCompanyName(employee?.employer);
+  const { companyName: employerCompanyName, logoUrl: employerLogoUrl, website: employerWebsite } = useEmployerCompanyName(employee?.employer);
 
   const {
     hasBalance: hasCusdcpBalance,
@@ -217,11 +220,17 @@ export function EmployeeDashboard() {
               View your encrypted payments, decrypt amounts, and manage tokens.
             </p>
           </div>
-          <div>
+          <div className="flex items-center gap-2 flex-wrap">
             {fheReady ? (
               <Badge variant="success" dot size="md">FHE ready</Badge>
             ) : (
               <Badge variant="warning" dot size="md">FHE initializing...</Badge>
+            )}
+            {isEmployee && employee && (
+              <ProfileCompleteBadge
+                employeeAddress={address ?? undefined}
+                employerAddress={employee.employer}
+              />
             )}
           </div>
         </motion.div>
@@ -316,9 +325,10 @@ export function EmployeeDashboard() {
           </div>
         </motion.div>
 
-        {/* ─── Monthly Invoice (only for onboarded employees) ─── */}
+        {/* ─── Monthly Invoice + Company (only for onboarded employees) ─── */}
         {isEmployee && (
-          <motion.div initial="hidden" animate="visible" variants={fadeUp}>
+          <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7">
             <Card variant="elevated" padding="lg">
               <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
                 <FileText className="h-5 w-5 text-[var(--color-primary)]" />
@@ -433,6 +443,52 @@ export function EmployeeDashboard() {
                 </div>
               )}
             </Card>
+            </div>
+            {/* Company you work for */}
+            <div className="lg:col-span-5">
+              <Card variant="elevated" padding="lg" className="h-full">
+                <h3 className="text-sm font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-5">
+                  Company you work for
+                </h3>
+                <div className="flex items-center gap-5">
+                  {employerLogoUrl ? (
+                    <EmployerLogo
+                      logoUrl={employerLogoUrl}
+                      fallbackText={employerCompanyName ?? undefined}
+                      className="w-16 h-16"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-2xl bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
+                      <Building2 className="w-8 h-8 text-[var(--color-primary)]" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xl font-bold text-[var(--color-text-primary)] truncate">
+                      {employerCompanyName || 'Employer'}
+                    </p>
+                    <p className="text-sm text-[var(--color-text-secondary)] font-mono mt-2">
+                      {employee?.employer ? formatAddress(employee.employer, 8) : '—'}
+                    </p>
+                    {!!employerWebsite && (
+                      <a
+                        href={employerWebsite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block mt-3 text-sm font-semibold text-[var(--color-primary)] hover:underline truncate"
+                      >
+                        {employerWebsite}
+                      </a>
+                    )}
+                    <Link
+                      to="/activity"
+                      className="inline-block mt-4 text-sm font-semibold text-[var(--color-primary)] hover:underline"
+                    >
+                      View transaction history →
+                    </Link>
+                  </div>
+                </div>
+              </Card>
+            </div>
           </motion.div>
         )}
 
@@ -564,6 +620,16 @@ export function EmployeeDashboard() {
           </motion.div>
         </div>
 
+        {/* ─── YTD (employee) ─── */}
+        {isEmployee && address && (
+          <motion.div initial="hidden" animate="visible" variants={fadeUp}>
+            <YtdCard
+              employeeAddress={address}
+              decryptedValues={decryptedValues}
+            />
+          </motion.div>
+        )}
+
         {/* ─── Payment History ─── */}
         <motion.div initial="hidden" animate="visible" variants={fadeUp}>
           <Card variant="elevated" className="overflow-hidden">
@@ -666,6 +732,12 @@ export function EmployeeDashboard() {
                         </div>
 
                         <div className="text-right flex items-center gap-3">
+                          <PayStubButton
+                            payment={p}
+                            decryptedAmount={isDecryptedPayment ? decryptedValues[key] : undefined}
+                            employerName={employerCompanyName ?? null}
+                            tokenSymbol={TOKEN_CONFIG.symbol}
+                          />
                           {isDecryptedPayment ? (
                             <span className="text-lg font-bold text-emerald-600">
                               {formatAmount(decryptedValues[key], TOKEN_CONFIG.decimals)}

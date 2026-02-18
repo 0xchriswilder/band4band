@@ -19,7 +19,10 @@ import { Badge } from '../ui/Badge';
 import { useFhevm } from '../../providers/useFhevmContext';
 import { formatAddress } from '../../lib/utils';
 import { EmployerLogo } from '../EmployerLogo';
-import { useEmployerProfile } from '../../hooks/usePayrollHistory';
+import { useEmployerProfile, useEmployeeProfile, useEmployerCompanyName } from '../../hooks/usePayrollHistory';
+import { useEmployeeProfileComplete } from '../../features/payroll/hooks/useEmployeeProfileComplete';
+import { Avatar } from '../Avatar';
+import { EmployeeProfileModal } from '../../features/payroll/components/EmployeeProfileModal';
 
 const baseNavLinks = [
   { to: '/', label: 'Home', icon: Home },
@@ -40,7 +43,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const { disconnect } = useDisconnect();
   const { isReady, isLoading } = useFhevm();
   const { profile: employerProfile } = useEmployerProfile(address ?? undefined);
+  const { employee } = useEmployeeProfile();
+  const { companyName: employerCompanyName } = useEmployerCompanyName(employee?.employer);
+  const { name: employeeDisplayName, email: employeeEmail, avatarUrl: employeeAvatarUrl, reload: reloadEmployeeDisplay } =
+    useEmployeeProfileComplete(address ?? undefined, employee?.employer);
   const closeMobile = onMobileClose;
+  const [showEmployeeProfile, setShowEmployeeProfile] = React.useState(false);
 
   const navLinks = React.useMemo(() => {
     const links = [...baseNavLinks];
@@ -157,27 +165,70 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3 p-2.5 bg-[var(--color-bg-light)] rounded-xl border border-[var(--color-primary)]/10">
-                  {employerProfile?.logo_url ? (
-                    <EmployerLogo
-                      logoUrl={employerProfile.logo_url}
-                      fallbackText={employerProfile?.company_name}
-                      className="h-10 w-10"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded-lg bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
-                      <Wallet className="h-5 w-5 text-[var(--color-primary)]" />
-                    </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!employerProfile && employee && address) setShowEmployeeProfile(true);
+                  }}
+                  className={cn(
+                    'flex items-center gap-3 p-2.5 bg-[var(--color-bg-light)] rounded-xl border border-[var(--color-primary)]/10 text-left',
+                    !employerProfile && employee ? 'cursor-pointer hover:bg-[var(--color-primary)]/5 transition-colors' : 'cursor-default'
                   )}
-                  <div className="flex flex-col overflow-hidden min-w-0 flex-1">
-                    <p className="text-xs font-bold truncate text-[var(--color-text-primary)]">
-                      {address ? formatAddress(address, 6) : '—'}
-                    </p>
-                    <p className="text-[10px] text-[var(--color-text-secondary)] truncate">
-                      {employerProfile?.company_name || 'Connected'}
-                    </p>
-                  </div>
-                </div>
+                >
+                  {employerProfile ? (
+                    <>
+                      {employerProfile.logo_url ? (
+                        <EmployerLogo
+                          logoUrl={employerProfile.logo_url}
+                          fallbackText={employerProfile.company_name}
+                          className="h-10 w-10"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-lg bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
+                          <Wallet className="h-5 w-5 text-[var(--color-primary)]" />
+                        </div>
+                      )}
+                      <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                        <p className="text-xs font-bold truncate text-[var(--color-text-primary)]">
+                          {address ? formatAddress(address, 6) : '—'}
+                        </p>
+                        <p className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                          {employerProfile.company_name || 'Connected'}
+                        </p>
+                      </div>
+                    </>
+                  ) : employee ? (
+                    <>
+                      <Avatar
+                        src={employeeAvatarUrl}
+                        fallbackText={employeeDisplayName}
+                        className="h-10 w-10"
+                      />
+                      <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                        <p className="text-xs font-bold truncate text-[var(--color-text-primary)]">
+                          {address ? formatAddress(address, 6) : '—'}
+                        </p>
+                        <p className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                          {employeeDisplayName ? `${employeeDisplayName}${employerCompanyName ? ` · ${employerCompanyName}` : ''}` : employerCompanyName ? `Employee at ${employerCompanyName}` : 'Connected'}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-10 w-10 rounded-lg bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
+                        <Wallet className="h-5 w-5 text-[var(--color-primary)]" />
+                      </div>
+                      <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                        <p className="text-xs font-bold truncate text-[var(--color-text-primary)]">
+                          {address ? formatAddress(address, 6) : '—'}
+                        </p>
+                        <p className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                          Connected
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => disconnect()}
@@ -192,6 +243,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           </div>
         </div>
       </aside>
+      {address && employee && !employerProfile && (
+        <EmployeeProfileModal
+          open={showEmployeeProfile}
+          onClose={() => setShowEmployeeProfile(false)}
+          employeeAddress={address}
+          employerAddress={employee.employer}
+          employerCompanyName={employerCompanyName ?? null}
+          initialName={employeeDisplayName}
+          initialEmail={employeeEmail}
+          initialAvatarUrl={employeeAvatarUrl}
+          onSaved={reloadEmployeeDisplay}
+        />
+      )}
     </>
   );
 }

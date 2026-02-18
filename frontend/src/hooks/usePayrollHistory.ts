@@ -7,19 +7,21 @@ import { supabase, type SalaryPaymentRow, type EmployeeRow, type EmployeeInvoice
 export function useEmployerCompanyName(employerAddress: string | undefined) {
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [website, setWebsite] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetch = useCallback(async () => {
     if (!employerAddress) {
       setCompanyName(null);
       setLogoUrl(null);
+      setWebsite(null);
       return;
     }
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('employer_profiles')
-        .select('company_name, logo_url')
+        .select('company_name, logo_url, website')
         .eq('employer_address', employerAddress.toLowerCase())
         .maybeSingle();
 
@@ -27,15 +29,18 @@ export function useEmployerCompanyName(employerAddress: string | undefined) {
         console.error('[Supabase] employer company name error:', error.message);
         setCompanyName(null);
         setLogoUrl(null);
+        setWebsite(null);
         return;
       }
       const row = data as EmployerProfileRow | null;
       setCompanyName(row?.company_name ?? null);
       setLogoUrl(row?.logo_url ?? null);
+      setWebsite(row?.website ?? null);
     } catch (err) {
       console.error('[Supabase] employer company name error:', err);
       setCompanyName(null);
       setLogoUrl(null);
+      setWebsite(null);
     } finally {
       setIsLoading(false);
     }
@@ -45,7 +50,7 @@ export function useEmployerCompanyName(employerAddress: string | undefined) {
     fetch();
   }, [fetch]);
 
-  return { companyName, logoUrl, isLoading, reload: fetch };
+  return { companyName, logoUrl, website, isLoading, reload: fetch };
 }
 
 /* ─── Employer full profile (for Company profile page edit) ─── */

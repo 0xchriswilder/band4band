@@ -72,6 +72,7 @@ export interface EmployeeDisplayNameRow {
   name: string;
   email?: string | null;
   payment_frequency?: string | null;
+  avatar_url?: string | null;
   updated_at: string;
 }
 
@@ -82,4 +83,14 @@ export interface EmployerProfileRow {
   website?: string | null;
   logo_url?: string | null;
   updated_at: string;
+}
+
+export interface PayrollRunRow {
+  id: number;
+  employer: string;
+  tx_hash: string;
+  block_number: number;
+  employee_count: number;
+  timestamp: string;
+  payroll_address: string;
 }

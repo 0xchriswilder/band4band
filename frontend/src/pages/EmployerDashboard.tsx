@@ -51,6 +51,8 @@ import { formatAddress, formatAmount, parseAmount, getUserFriendlyErrorMessage }
 import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
 import { useEmployerInvoices, useEmployerLatestPaymentHandles, useEmployerEmployeeNames } from '../hooks/usePayrollHistory';
+import { NextPayDateCard } from '../features/payroll/components/NextPayDateCard';
+import { PayrollRunSummarySection } from '../features/payroll/components/PayrollRunSummarySection';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -685,6 +687,9 @@ export function EmployerDashboard() {
                 </Link>
               </div>
             </Card>
+            {hasPayroll && address && (
+              <NextPayDateCard employerAddress={address} />
+            )}
             <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100/50 p-4">
               <div className="flex items-start gap-3">
                 <Shield className="w-8 h-8 text-[var(--color-primary)] shrink-0 opacity-80" />
@@ -699,6 +704,7 @@ export function EmployerDashboard() {
 
         {/* Employees table — only when payroll is registered */}
         {hasPayroll && (
+        <>
         <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mt-6">
           <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] shadow-sm p-0">
             <div className="bg-gradient-to-r from-[var(--color-primary)]/5 to-transparent border-b border-[var(--color-border-light)] px-6 py-4">
@@ -908,6 +914,11 @@ export function EmployerDashboard() {
             )}
           </Card>
         </motion.div>
+
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mt-6">
+          <PayrollRunSummarySection employerAddress={address ?? undefined} />
+        </motion.div>
+        </>
         )}
 
       {/* Edit Salary Modal */}
