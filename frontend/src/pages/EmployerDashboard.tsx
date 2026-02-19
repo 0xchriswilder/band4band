@@ -489,9 +489,23 @@ export function EmployerDashboard() {
               </div>
             </motion.div>
 
-            {/* Register section */}
+            {/* Register section — with context so companies understand the process before the CTA */}
             {!hasPayroll && (
-              <motion.div initial="hidden" animate="visible" variants={fadeUp} className="space-y-3">
+              <motion.div initial="hidden" animate="visible" variants={fadeUp} className="space-y-4">
+                <Card variant="bordered" padding="lg" className="bg-[var(--color-bg-light)]/50 border-[var(--color-border-light)]">
+                  <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-2">What you can do in the Payroll app</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+                    This dashboard lets you run confidential payroll on-chain: add employees, set encrypted salaries, and pay your team in confidential tokens. Only you and each employee can see that employee’s salary. You can also send e-sign employment contracts (DocuSign), track invoices, and view payment history.
+                  </p>
+                  <p className="text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">The process</p>
+                  <ol className="text-sm text-[var(--color-text-secondary)] space-y-1.5 list-decimal list-inside">
+                    <li><strong>Register your payroll</strong> — Deploy your dedicated contract (one per company).</li>
+                    <li><strong>Wrap USDC</strong> — Convert USDC into confidential tokens to fund the treasury.</li>
+                    <li><strong>Approve operator</strong> — Allow your payroll contract to move tokens (one-time).</li>
+                    <li><strong>Onboard employees</strong> — Add team members and set encrypted salaries (manually or via CSV import).</li>
+                    <li><strong>Run payroll</strong> — Execute batch payments; employees can decrypt their amount.</li>
+                  </ol>
+                </Card>
                 <Card variant="elevated" padding="lg" className="border-l-4 border-l-[var(--color-primary)]">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
