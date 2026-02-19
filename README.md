@@ -140,7 +140,7 @@ Each roadmap page shows a short description and a "Planned" bullet list. E-sign,
 │                                                                                  │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │   SMART CONTRACTS (Solidity, Hardhat, Sepolia)                                  │
-│   • MockUSDC (test) / USDC → ConfidentialPayrollToken (ERC-7984 wrapper)         │
+│   • USDC (Sepolia) → ConfidentialPayrollToken (ERC-7984 wrapper, cUSDC)         │
 │   • PayrollFactory → deploys one Payroll per employer                           │
 │   • Payroll: onboard, edit, remove, paySalary, batchPaySalaries (FHE + ACL)      │
 │                                                                                  │
@@ -185,15 +185,15 @@ zama-confidential-payroll-dapp/
 
 ### Deployment order
 
-1. **MockUSDC** (or real USDC) – ERC-20, 6 decimals  
-2. **ConfidentialPayrollToken** – ERC-7984 wrapper; wraps USDC 1:1 into confidential cUSDC (e.g. cUSDCP)  
+1. **USDC** (Sepolia: `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`) – ERC-20, 6 decimals  
+2. **ConfidentialPayrollToken** – ERC-7984 wrapper; wraps USDC 1:1 into confidential **cUSDC**  
 3. **PayrollFactory** – holds confidential token address; deploys one **Payroll** per employer via `registerEmployer()`
 
 ### Contract roles
 
 | Contract | Role |
 |----------|------|
-| **MockUSDC** | Plain ERC-20 for testing. Replace with real USDC on mainnet. |
+| **USDC** | Real USDC on Sepolia. Used as underlying for the confidential wrapper. |
 | **ConfidentialPayrollToken** | ERC-7984 (OpenZeppelin + Zama). `wrap(recipient, amount)`, `confidentialTransferFrom`, `unwrap`. Balances and transfers are encrypted on-chain. |
 | **PayrollFactory** | `registerEmployer()` deploys `Payroll(confidentialToken, msg.sender)` and stores `employerPayroll[employer]`. Emits `PayrollCreated`. |
 | **Payroll** | One per employer. Holds `employer`, `confidentialToken`, `whitelisted[employee]`, and per-employee encrypted `salaryHistory`. Calls `FHE.fromExternal` for encrypted inputs and ACLs so only employer, employee, and token can use handles. |
@@ -296,7 +296,8 @@ Indexer polls for new blocks and writes events to Supabase.
 cd frontend
 npm install
 cp .env.example .env
-# Set: VITE_PAYROLL_FACTORY_ADDRESS, VITE_CONF_TOKEN_ADDRESS, VITE_USDC_ADDRESS,
+# Set: VITE_PAYROLL_FACTORY_ADDRESS, VITE_CONF_TOKEN_ADDRESS, VITE_USDC_ADDRESS
+#      (Sepolia USDC: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238),
 #      VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SEPOLIA_RPC_URL or similar
 npm run dev
 ```

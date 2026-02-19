@@ -17,22 +17,17 @@ const MAX_PARALLEL = 5;
 const BLOCK_WINDOW = Number(process.env.INDEXER_BLOCK_WINDOW || 10);
 
 /* ------------------------------------------------------------
-   Utilities
+   Utilities (in-memory only — no Supabase for indexer state)
 ------------------------------------------------------------ */
 
-async function getMeta(key: string, defaultValue = "0"): Promise<string> {
-  const { data } = await supabase
-    .from("indexer_meta")
-    .select("value")
-    .eq("key", key)
-    .single();
-  return data?.value ?? defaultValue;
+const metaStore = new Map<string, string>();
+
+function getMeta(key: string, defaultValue = "0"): string {
+  return metaStore.get(key) ?? defaultValue;
 }
 
-async function setMeta(key: string, value: string): Promise<void> {
-  await supabase
-    .from("indexer_meta")
-    .upsert({ key, value }, { onConflict: "key" });
+function setMeta(key: string, value: string): void {
+  metaStore.set(key, value);
 }
 
 /* ------------------------------------------------------------
@@ -297,13 +292,12 @@ async function discoverNewPayrolls() {
     PayrollFactoryABI.abi,
     provider
   );
-  const lastBlockStr = await getMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, "0");
+  const lastBlockStr = getMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, "0");
   let from = parseInt(lastBlockStr, 10);
   const latest = await provider.getBlockNumber();
 
   if (from === 0) {
-    from = latest;
-    await setMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, latest.toString());
+    setMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, latest.toString());
     return;
   }
 
@@ -319,9 +313,6 @@ async function discoverNewPayrolls() {
         await new Promise((res) => setTimeout(res, 500));
       }
     }
-    if (allEvents.length > 0) {
-      console.log(`Factory: found ${allEvents.length} PayrollCreated event(s)`);
-    }
   }
 
   for (const ev of allEvents) {
@@ -331,21 +322,22 @@ async function discoverNewPayrolls() {
     if (!creator || !payroll) continue;
 
     const deployedAtBlock = ev.blockNumber;
-    await supabase.from("payrolls").upsert(
+    const payrollAddr = payroll.toLowerCase();
+    setMeta(`${payrollAddr}_lastIndexedBlock`, (deployedAtBlock - 1).toString());
+    supabase.from("payrolls").upsert(
       {
-        address: payroll.toLowerCase(),
+        address: payrollAddr,
         creator: creator.toLowerCase(),
         deployed_at_block: deployedAtBlock,
         last_indexed_block: deployedAtBlock,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "address" }
-    );
-
+    ).then(({ error }) => { if (error) console.error("Supabase upsert payroll:", error.message); });
     console.log(`Registered payroll: ${payroll} (creator ${creator}, block ${deployedAtBlock})`);
   }
 
-  await setMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, latest.toString());
+  setMeta(`${FACTORY_ADDRESS}_lastIndexedBlock`, latest.toString());
 }
 
 /* ------------------------------------------------------------
@@ -359,12 +351,12 @@ async function indexPayroll(payrollAddress: string) {
     provider
   );
 
-  let from = parseInt(await getMeta(`${payrollAddress}_lastIndexedBlock`, "0"), 10);
+  let from = parseInt(getMeta(`${payrollAddress}_lastIndexedBlock`, "0"), 10);
   const latest = await provider.getBlockNumber();
   const safeToBlock = Math.max(0, latest - CONFIRMATIONS);
 
   if (from === 0) {
-    await setMeta(`${payrollAddress}_lastIndexedBlock`, safeToBlock.toString());
+    setMeta(`${payrollAddress}_lastIndexedBlock`, safeToBlock.toString());
     return;
   }
 
@@ -381,8 +373,6 @@ async function indexPayroll(payrollAddress: string) {
     "SalaryClaimed",
   ];
 
-  const range = safeToBlock - from + 1;
-  console.log(`Indexing ${payrollAddress} ${range} new block${range !== 1 ? "s" : ""} (${from}->${safeToBlock}, window=${BLOCK_WINDOW})`);
   let allEvents: ethers.EventLog[] = [];
 
   for (let start = from; start <= safeToBlock; start += BLOCK_WINDOW) {
@@ -398,25 +388,57 @@ async function indexPayroll(payrollAddress: string) {
     }
   }
 
-  console.log(`${payrollAddress}: found ${allEvents.length} events`);
+  if (allEvents.length > 0) {
+    console.log(`${payrollAddress}: ${allEvents.length} event(s)`);
+  }
   allEvents.sort((a, b) => a.blockNumber - b.blockNumber || a.index - b.index);
 
   for (const ev of allEvents) {
     await processEvent(ev);
   }
 
-  await setMeta(`${payrollAddress}_lastIndexedBlock`, safeToBlock.toString());
+  setMeta(`${payrollAddress}_lastIndexedBlock`, safeToBlock.toString());
 }
 
 /* ------------------------------------------------------------
    Master loop
 ------------------------------------------------------------ */
 
-async function runIndexer() {
+/** Get list of payroll addresses from the factory contract (chain), not Supabase. */
+async function getPayrollAddressesFromChain(): Promise<string[]> {
+  const factory = new ethers.Contract(
+    FACTORY_ADDRESS,
+    PayrollFactoryABI.abi,
+    provider
+  );
+  const employers = (await factory.getAllEmployers()) as string[];
+  const addresses: string[] = [];
+  for (const emp of employers) {
+    const payroll = (await factory.getPayroll(emp)) as string;
+    if (payroll && ethers.getAddress(payroll) !== ethers.ZeroAddress) {
+      addresses.push(payroll.toLowerCase());
+    }
+  }
+  return addresses;
+}
+
+function shortError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("<!DOCTYPE") || msg.length > 200) {
+    return msg.slice(0, 120) + "...";
+  }
+  return msg;
+}
+
+async function runIndexer(): Promise<{ payrollCount: number }> {
   await discoverNewPayrolls();
 
-  const { data: payrolls } = await supabase.from("payrolls").select("address");
-  const list = payrolls ?? [];
+  let list: string[] = [];
+  try {
+    list = await getPayrollAddressesFromChain();
+  } catch (err: any) {
+    console.error("Chain payroll list error:", shortError(err));
+  }
 
   const chunks = [];
   for (let i = 0; i < list.length; i += MAX_PARALLEL) {
@@ -424,8 +446,9 @@ async function runIndexer() {
   }
 
   for (const group of chunks) {
-    await Promise.allSettled(group.map((p) => indexPayroll(p.address)));
+    await Promise.allSettled(group.map((address) => indexPayroll(address)));
   }
+  return { payrollCount: list.length };
 }
 
 /* ------------------------------------------------------------
@@ -433,7 +456,6 @@ async function runIndexer() {
 ------------------------------------------------------------ */
 
 export async function startIndexerLoop() {
-  console.log(`Indexer running live-only (block window=${BLOCK_WINDOW}, poll=${POLL_INTERVAL_MS}ms)`);
   while (true) {
     try {
       await runIndexer();

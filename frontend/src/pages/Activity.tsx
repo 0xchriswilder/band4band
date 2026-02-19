@@ -50,7 +50,7 @@ import { TOKEN_CONFIG, CONTRACTS } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
 import { Avatar } from '../components/Avatar';
 import { EmployerLogo } from '../components/EmployerLogo';
-import { CusdcpLogo } from '../components/icons/CusdcpLogo';
+import { UsdcLogo } from '../components/icons/UsdcLogo';
 import { supabase } from '../lib/supabase';
 
 const fadeUp = {
@@ -153,7 +153,7 @@ export function Activity() {
   }, [chartPayments, chartDecryptedByHandle]);
 
   const paymentDistributionData = useMemo(() => {
-    return [{ name: 'cUSDCP', value: chartPayments.length, color: '#2775CA' }];
+    return [{ name: TOKEN_CONFIG.symbol, value: chartPayments.length, color: '#2775CA' }];
   }, [chartPayments.length]);
 
   const handleDecryptPayment = async (txHash: string, employee: string, encrypted: string) => {
@@ -700,7 +700,7 @@ export function Activity() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Legend formatter={() => <span className="flex items-center gap-2"><CusdcpLogo size={16} /> cUSDCP</span>} />
+                      <Legend formatter={() => <span className="flex items-center gap-2"><UsdcLogo size={16} /> {TOKEN_CONFIG.symbol}</span>} />
                       <Tooltip formatter={(value: number | undefined) => [`${value ?? 0} payments`, '']} />
                     </PieChart>
                   </ResponsiveContainer>

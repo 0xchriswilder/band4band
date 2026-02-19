@@ -37,8 +37,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { CusdcpLogo } from '../components/icons/CusdcpLogo';
-import { CusdtLogo } from '../components/icons/CusdtLogo';
+import { UsdcLogo } from '../components/icons/UsdcLogo';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
@@ -107,13 +106,13 @@ export function EmployerDashboard() {
   } = useWrapToken();
 
   const {
-    hasBalance: hasCusdcpBalance,
-    decryptedBalance: cusdcpBalance,
-    isDecrypted: cusdcpDecrypted,
-    isDecrypting: cusdcpDecrypting,
+    hasBalance: hasCusdcBalance,
+    decryptedBalance: cusdcBalance,
+    isDecrypted: cusdcDecrypted,
+    isDecrypting: cusdcDecrypting,
     fheReady,
-    decrypt: decryptCusdcpBalance,
-    refetch: refetchCusdcpBalance,
+    decrypt: decryptCusdcBalance,
+    refetch: refetchCusdcBalance,
   } = useConfidentialBalance();
 
   const { encryptAmount } = useFhevmEncrypt();
@@ -134,7 +133,7 @@ export function EmployerDashboard() {
   const [showImportPreview, setShowImportPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual');
-  const [onboardToken, setOnboardToken] = useState<'cUSDCP' | 'cUSDT'>('cUSDCP');
+  const [onboardToken, setOnboardToken] = useState<'cUSDC'>('cUSDC');
   const [paymentFrequency, setPaymentFrequency] = useState<'monthly' | 'biweekly' | 'weekly'>('monthly');
   const [employeeEmail, setEmployeeEmail] = useState('');
 
@@ -320,9 +319,9 @@ export function EmployerDashboard() {
       setShowBalance(false);
       return;
     }
-    if (!hasCusdcpBalance) return;
+    if (!hasCusdcBalance) return;
     try {
-      await decryptCusdcpBalance();
+      await decryptCusdcBalance();
       setShowBalance(true);
     } catch {
       // ignore
@@ -445,10 +444,10 @@ export function EmployerDashboard() {
                     </div>
                     <button
                       onClick={handleRevealBalance}
-                      disabled={cusdcpDecrypting || !hasCusdcpBalance}
+                      disabled={cusdcDecrypting || !hasCusdcBalance}
                       className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white/90 text-sm font-medium transition-all disabled:opacity-50 backdrop-blur-sm"
                     >
-                      {cusdcpDecrypting ? (
+                      {cusdcDecrypting ? (
                         <><RefreshCw className="w-4 h-4 animate-spin" /> Decrypting...</>
                       ) : showBalance ? (
                         <><EyeOff className="w-4 h-4" /> Hide</>
@@ -459,9 +458,9 @@ export function EmployerDashboard() {
                   </div>
                   <div className="mb-6">
                     <div className="text-5xl md:text-6xl font-bold text-white mb-2">
-                      {showBalance && cusdcpDecrypted && cusdcpBalance !== null ? (
+                      {showBalance && cusdcDecrypted && cusdcBalance !== null ? (
                         <motion.span initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="inline-flex items-center gap-3">
-                          {formatAmount(cusdcpBalance, TOKEN_CONFIG.decimals)}
+                          {formatAmount(cusdcBalance, TOKEN_CONFIG.decimals)}
                           <span className="text-2xl font-normal text-white/70">{TOKEN_CONFIG.symbol}</span>
                         </motion.span>
                       ) : (
@@ -542,12 +541,12 @@ export function EmployerDashboard() {
                   </div>
                   <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
                     <div className="text-[10px] font-medium text-emerald-700 uppercase tracking-wide">{TOKEN_CONFIG.symbol}</div>
-                    {cusdcpDecrypted && cusdcpBalance !== null ? (
-                      <div className="text-lg font-bold text-emerald-700 truncate">{formatAmount(cusdcpBalance, TOKEN_CONFIG.decimals)}</div>
-                    ) : hasCusdcpBalance ? (
+                    {cusdcDecrypted && cusdcBalance !== null ? (
+                      <div className="text-lg font-bold text-emerald-700 truncate">{formatAmount(cusdcBalance, TOKEN_CONFIG.decimals)}</div>
+                    ) : hasCusdcBalance ? (
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Lock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                        <Button variant="secondary" size="sm" onClick={() => decryptCusdcpBalance()} disabled={cusdcpDecrypting || !fheReady} loading={cusdcpDecrypting} className="!py-1 !text-xs"><Unlock className="h-3 w-3" /> Reveal</Button>
+                        <Button variant="secondary" size="sm" onClick={() => decryptCusdcBalance()} disabled={cusdcDecrypting || !fheReady} loading={cusdcDecrypting} className="!py-1 !text-xs"><Unlock className="h-3 w-3" /> Reveal</Button>
                       </div>
                     ) : (
                       <div className="text-lg font-bold text-emerald-700">0.00</div>
@@ -559,7 +558,7 @@ export function EmployerDashboard() {
                     <Input type="number" placeholder="0.00" step="0.01" min="0" value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} className="text-sm" />
                     <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setWrapAmount(usdcBalanceFormatted)}>MAX</button>
                   </div>
-                  <Button size="sm" onClick={async () => { if (!wrapAmount || Number(wrapAmount) <= 0) return; try { await wrapUsdc(wrapAmount); toast.success('Tokens wrapped!'); setWrapAmount(''); refetchBalances(); refetchCusdcpBalance(); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Wrap failed')); }}} disabled={!isConnected || isWrapping || !wrapAmount || Number(wrapAmount) <= 0 || usdcBalance === 0n} loading={isWrapping}>
+                  <Button size="sm" onClick={async () => { if (!wrapAmount || Number(wrapAmount) <= 0) return; try { await wrapUsdc(wrapAmount); toast.success('Tokens wrapped!'); setWrapAmount(''); refetchBalances(); refetchCusdcBalance(); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Wrap failed')); }}} disabled={!isConnected || isWrapping || !wrapAmount || Number(wrapAmount) <= 0 || usdcBalance === 0n} loading={isWrapping}>
                     <ShieldCheck className="h-4 w-4" /> {wrapAmount && needsApproval(wrapAmount) ? 'Approve & Wrap' : 'Wrap'}
                   </Button>
                 </div>
@@ -575,8 +574,8 @@ export function EmployerDashboard() {
                 <div className="flex gap-2 mt-auto">
                   <div className="relative flex-1">
                     <Input type="number" placeholder="0.00" step="0.01" min="0" value={unwrapAmount} onChange={(e) => setUnwrapAmount(e.target.value)} className="text-sm" />
-                    {cusdcpDecrypted && cusdcpBalance !== null && cusdcpBalance > 0n && (
-                      <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setUnwrapAmount(formatAmount(cusdcpBalance, TOKEN_CONFIG.decimals))}>MAX</button>
+                    {cusdcDecrypted && cusdcBalance !== null && cusdcBalance > 0n && (
+                      <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-primary)] hover:underline" onClick={() => setUnwrapAmount(formatAmount(cusdcBalance, TOKEN_CONFIG.decimals))}>MAX</button>
                     )}
                   </div>
                   <Button size="sm" variant="secondary" onClick={async () => {
@@ -588,7 +587,7 @@ export function EmployerDashboard() {
                       if (!encrypted || !encrypted.handles[0]) throw new Error('Encrypt failed');
                       await writeContractAsync({ address: CONTRACTS.CONF_TOKEN, abi: CONF_TOKEN_ABI, functionName: 'unwrap', args: [address, address, encrypted.handles[0], encrypted.inputProof as `0x${string}`] });
                       toast.success('Unwrap initiated (async via gateway)');
-                      setUnwrapAmount(''); refetchBalances(); refetchCusdcpBalance();
+                      setUnwrapAmount(''); refetchBalances(); refetchCusdcBalance();
                     } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Unwrap failed')); } finally { setIsUnwrapping(false); }
                   }} disabled={!isConnected || isUnwrapping || isUnwrapWriting || !unwrapAmount || Number(unwrapAmount) <= 0 || !fheReady} loading={isUnwrapping || isUnwrapWriting}>
                     <ShieldOff className="h-4 w-4" /> Unwrap
@@ -622,14 +621,10 @@ export function EmployerDashboard() {
                             <Input value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="2500.00" hint="Amount (6 decimals). Will be encrypted before submitting." icon={<DollarSign className="h-4 w-4" />} />
                           </div>
                           <div className="flex gap-1.5 shrink-0">
-                            <button type="button" onClick={() => setOnboardToken('cUSDCP')} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all ${onboardToken === 'cUSDCP' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border-light)] hover:border-[var(--color-primary)]/30'}`} title="cUSDCP">
-                              <CusdcpLogo size={20} />
-                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">cUSDCP</span>
-                            </button>
-                            <button type="button" onClick={() => setOnboardToken('cUSDT')} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all ${onboardToken === 'cUSDT' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border-light)] hover:border-[var(--color-primary)]/30 opacity-75'}`} title="cUSDT (coming soon)">
-                              <CusdtLogo size={20} />
-                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">cUSDT</span>
-                            </button>
+                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary)]/10" title={TOKEN_CONFIG.symbol}>
+                              <UsdcLogo size={20} />
+                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">{TOKEN_CONFIG.symbol}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1048,7 +1043,7 @@ export function EmployerDashboard() {
                 <button onClick={() => setShowApprovePayrollModal(false)} className="p-1 rounded-lg hover:bg-gray-100" disabled={isApprovingPayroll}><X className="h-5 w-5 text-[var(--color-text-tertiary)]" /></button>
               </div>
               <p className="text-sm text-[var(--color-text-secondary)] mb-3">
-                The confidential token (cUSDCP) uses an <strong>operator pattern</strong>: your payroll contract must be approved to move tokens on your behalf when you run payroll.
+                The confidential token ({TOKEN_CONFIG.symbol}) uses an <strong>operator pattern</strong>: your payroll contract must be approved to move tokens on your behalf when you run payroll.
               </p>
               <p className="text-sm text-[var(--color-text-secondary)] mb-3">
                 This approval is a one-time setup per payroll contract. Once approved, you can run payroll whenever you want without approving again (until the approval expires or you revoke it).

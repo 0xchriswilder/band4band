@@ -12,7 +12,7 @@ export const CONTRACTS = {
 } as const;
 
 export const TOKEN_CONFIG = {
-  symbol: 'cUSDCP',
+  symbol: 'cUSDC',
   underlyingSymbol: 'USDC',
   decimals: 6,
 } as const;
@@ -38,7 +38,7 @@ export const PAYROLL_ABI = parseAbi([
   'event SalaryPaid(address indexed employer,address indexed employee,uint256 index,bytes32 salary,uint256 timestamp,bytes32 paymentId,address payroll)',
 ]);
 
-/* ── ERC-20 (USDC / MockUSDC) ────────────────────────── */
+/* ── ERC-20 (USDC on Sepolia) ────────────────────────── */
 export const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
   'function allowance(address owner, address spender) view returns (uint256)',
