@@ -13,8 +13,8 @@ export function Footer() {
           {/* Logo & Description */}
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="inline-flex items-center gap-2 mb-5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white overflow-hidden">
-                <img src="/payroll.png" alt="" className="h-6 w-6 object-contain" />
+              <div className="flex h-8 w-8 items-center justify-center overflow-hidden">
+                <img src="/payroll.png" alt="" className="h-8 w-8 object-contain" />
               </div>
               <span className="text-lg font-bold tracking-tight text-[var(--color-text-primary)]">
                 Payroll Guard
@@ -96,15 +96,7 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a
-                  href="https://github.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[var(--color-primary)] transition-colors inline-flex items-center gap-1"
-                >
-                  GitHub
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+              
               </li>
             </ul>
           </div>
@@ -119,6 +111,26 @@ export function Footer() {
             <span className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-pulse" />
             <span>Sepolia Testnet</span>
           </div>
+        </div>
+      </div>
+
+      {/* Full-width wordmark — outside max-w-7xl so it uses full viewport and text is never cut off */}
+      <div className="border-t border-[var(--color-border-light)]">
+        <div
+          className="bg-white py-12 sm:py-16 md:py-20 flex flex-col items-stretch justify-center gap-2 w-full min-w-0"
+          style={{ paddingLeft: 'max(1rem, env(safe-area-inset-left))', paddingRight: 'max(1rem, env(safe-area-inset-right))' }}
+        >
+          <div className="flex w-full items-center justify-center px-4 sm:px-6 lg:px-8 min-w-0" aria-hidden>
+            <span
+              className="font-black tracking-tighter text-[var(--color-primary)] select-none leading-none whitespace-nowrap"
+              style={{ fontSize: 'clamp(3rem, 18vw, 14rem)' }}
+            >
+              PAYROLL GUARD
+            </span>
+          </div>
+          <span className="text-[var(--color-text-tertiary)] text-xs sm:text-sm uppercase tracking-[0.2em] mt-1 text-center">
+            Confidential payroll onchain. Powered by Zama FHE.
+          </span>
         </div>
       </div>
     </footer>

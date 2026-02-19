@@ -96,8 +96,8 @@ export function Landing() {
             {/* Left content */}
             <div className="flex flex-col gap-8">
               <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp}>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-primary)]/10 px-3 py-1 text-sm font-bold text-[var(--color-primary)]">
-                  <img src="/payroll.png" alt="" className="h-4 w-4 object-contain" />
+                <div className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-bg-light)] border border-[var(--color-border-light)] px-3 py-1 text-sm font-bold text-[var(--color-primary)]">
+                  <img src="/payroll.png" alt="" className="h-5 w-5 object-contain" />
                   Powered by Zama FHE Technology
                 </div>
               </motion.div>
@@ -241,6 +241,92 @@ export function Landing() {
         </div>
       </section>
 
+      {/* ─── E-sign contracts (DocuSign) ─── */}
+      <section className="py-24 bg-[var(--color-bg-light)] border-t border-[var(--color-border-light)]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-14 text-center">
+            <div className="inline-flex items-center justify-center gap-3 mb-4">
+              <img src="/docs.svg" alt="" className="h-16 w-16 object-contain" />
+              <span className="text-sm font-bold uppercase tracking-widest text-[var(--color-primary)]">E-signatures</span>
+            </div>
+            <h2 className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
+              Employment contracts, signed before onboarding
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-[var(--color-text-secondary)]">
+              Employers connect DocuSign once, then send employment agreements to their team. Employees sign electronically — one flow, fully compliant. No shared account: bring your own DocuSign.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="relative overflow-hidden rounded-2xl border-2 border-[var(--color-border-light)] bg-white p-8 shadow-lg hover:border-[var(--color-primary)]/30 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[var(--color-primary)]/10 to-transparent rounded-bl-full" />
+              <div className="relative flex items-start gap-5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-amber-50 border border-amber-200/80">
+                  <img src="/docss.png" alt="DocuSign" className="h-8 w-8 object-contain" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[var(--color-text-primary)]">Connect & send in one click</h3>
+                  <p className="mt-3 text-[var(--color-text-secondary)] leading-relaxed">
+                    As an employer, connect your DocuSign account From the Contracts page, pick an employee and send an employment agreement — they receive the signing link by email and sign before you onboard them on-chain.
+                  </p>
+                  <ul className="mt-4 space-y-2 text-sm text-[var(--color-text-secondary)]">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-[var(--color-success)] shrink-0" />
+                      One-time DocuSign connection per employer
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-[var(--color-success)] shrink-0" />
+                      Send from your team list; track sent and signed
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="relative overflow-hidden rounded-2xl border-2 border-[var(--color-border-light)] bg-white p-8 shadow-lg hover:border-[var(--color-primary)]/30 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-emerald-500/10 to-transparent rounded-tr-full" />
+              <div className="relative flex items-start gap-5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-200/80">
+                  <Users className="h-8 w-8 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[var(--color-text-primary)]">Bring your own DocuSign</h3>
+                  <p className="mt-3 text-[var(--color-text-secondary)] leading-relaxed">
+                    We don’t use a single shared DocuSign account. Every employer connects <strong>their own</strong> DocuSign via OAuth — so contract emails and branding come from your account. Perfect for companies that already use DocuSign: connect your existing account and start sending contracts from the dApp.
+                  </p>
+                  <ul className="mt-4 space-y-2 text-sm text-[var(--color-text-secondary)]">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-[var(--color-success)] shrink-0" />
+                      Your account, your branding, your audit trail
+                    </li>
+                    <li className="flex items-center gap-2">
+                     
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          <p className="mt-8 text-center text-sm text-[var(--color-text-tertiary)] flex items-center justify-center gap-2 flex-wrap">
+            <img src="/docss.png" alt="" className="h-5 w-5 object-contain opacity-80" />
+            E-signatures powered by DocuSign
+          </p>
+        </div>
+      </section>
+
       {/* ─── Comparison: Traditional vs Confidential Payroll ─── */}
       <section className="py-24 bg-[var(--color-bg-light)] border-t border-[var(--color-border-light)]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -381,8 +467,8 @@ export function Landing() {
               >
                 <div className="rounded-2xl border border-zinc-700 bg-zinc-800/50 p-6 backdrop-blur-sm shadow-xl">
                   <div className="flex items-center gap-3 mb-6 border-b border-zinc-700 pb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[var(--color-primary)] to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-[var(--color-primary)]/25 p-1.5">
-                      <img src="/payroll.png" alt="" className="w-full h-full object-contain" />
+                    <div className="w-12 h-12 flex items-center justify-center">
+                      <img src="/payroll.png" alt="" className="w-12 h-12 object-contain" />
                     </div>
                     <div>
                       <p className="text-white/60 text-sm font-medium">Confidential Balance</p>

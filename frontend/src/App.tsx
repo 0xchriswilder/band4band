@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
-import { Landing, EmployerDashboard, EmployerInvoices, EmployeeDashboard, InvoicesPage, Activity, CompanyProfilePage, RoadmapPreviewPage } from './pages';
+import { Landing, EmployerDashboard, EmployerInvoices, EmployeeDashboard, InvoicesPage, Activity, CompanyProfilePage, RoadmapPreviewPage, DocusignCallbackPage, DocusignSignedPage, ContractsPage } from './pages';
 
 export default function App() {
   return (
@@ -64,6 +64,9 @@ export default function App() {
             </AppLayout>
           }
         />
+        <Route path="/contracts" element={<AppLayout><ContractsPage /></AppLayout>} />
+        <Route path="/docusign/callback" element={<DocusignCallbackPage />} />
+        <Route path="/docusign/signed" element={<DocusignSignedPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

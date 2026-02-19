@@ -6,6 +6,8 @@ A functioning **confidential payroll dApp** where a company can pay employees on
 
 
 <img width="1156" height="585" alt="image" src="https://github.com/user-attachments/assets/cc1c237c-1964-4dcf-831b-087d31c2dfcb" />
+
+<img width="1380" height="639" alt="image" src="https://github.com/user-attachments/assets/119e82b0-6f9d-4d6e-9930-9b5bc7f53f9f" />
 ---
 
 ## Bounty alignment
@@ -29,6 +31,7 @@ A functioning **confidential payroll dApp** where a company can pay employees on
   - Employee display names and emails (stored off-chain in Supabase)  
   - Payment frequency (monthly / bi-weekly / weekly)  
   - CSV/XLSX bulk import with **preview-before-onboard**  
+  - **E-sign employment contracts (DocuSign):** employers connect their own DocuSign account and send agreements to employees; employees sign before onboarding — **bring your own DocuSign** (no shared sender; each company uses their account via OAuth).  
   - Transaction history (employer + employee views) with Payroll Volume and Payment Distribution charts  
   - Invoicing: employees submit invoices; employers mark them paid  
   - Export payment history to CSV  
@@ -50,8 +53,15 @@ All of the following are implemented and documented here for completeness.
 | **CSV/XLSX bulk import** | Upload spreadsheet (address, salary, name, email, payment_frequency); **preview table** before confirming onboard. | Employer dashboard: “Import from spreadsheet” → choose file → preview → Onboard. |
 | **Transaction history** | Employer and employee views of payments. **Payroll Volume** chart (e.g. by month) and **Payment Distribution** chart. | **Activity** page; filter by payroll / role. |
 | **Invoicing** | Employees submit invoices (per month); employers see status and mark them paid. | Employee: Invoices page; Employer: dashboard invoice column + Invoices page. |
+| **E-sign employment contracts (DocuSign)** | Employers connect DocuSign (OAuth), send employment agreements to employees; employees sign before onboarding. **Bring your own DocuSign** — each employer connects their own account (sandbox or production); no shared sender. | **Contracts** page: employer connects DocuSign, sends from employee list; employee sees "My contracts" and opens e-sign page to sign. E-signatures powered by DocuSign. |
 | **Export payment history to CSV** | Download payment history as CSV. | Activity page (and employer/employee history views): “Export CSV” (or equivalent). |
 | **Unwrap cUSDC → USDC** | Optional conversion of confidential balance back to plain USDC. | Employee dashboard: “Unwrap” section; enter amount and confirm. |
+
+---
+
+## E-sign: bring your own DocuSign
+
+Employment contracts are sent and signed via **DocuSign**. The app does **not** use a single shared DocuSign account. Each employer connects **their own** DocuSign (sandbox for testing or production for go-live) via OAuth. Contract emails and branding come from the employer's account. Companies that already use DocuSign can connect their existing account and start sending contracts from the dApp. See **Contracts** in the app and `docs/E-SIGN-IMPLEMENTATION-PLAN.md` for implementation details.
 
 ---
 

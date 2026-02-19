@@ -32,12 +32,12 @@ const baseNavLinks = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/employer', label: 'Employer Dashboard', icon: Building2 },
   { to: '/invoices', label: 'Invoices', icon: FileText },
+  { to: '/contracts', label: 'Contracts (e-sign)', icon: FileSignature },
   { to: '/employee', label: 'Employee Portal', icon: UserCircle },
   { to: '/activity', label: 'Transaction History', icon: BarChart3 },
 ];
 
 const comingSoonLinks = [
-  { to: '/roadmap/contracts', label: 'Contracts (e-sign)', icon: FileSignature },
   { to: '/roadmap/time-tracking', label: 'Time tracking', icon: Clock },
   { to: '/roadmap/tax', label: 'Tax estimates', icon: Calculator },
   { to: '/roadmap/benefits', label: 'Benefits & deductions', icon: Package },
@@ -93,8 +93,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           {/* Mobile close / menu - shown in main area via AppLayout, not here */}
           <div className="flex items-center justify-between md:justify-start">
             <Link to="/" className="flex items-center gap-3" onClick={closeMobile}>
-              <div className="bg-[var(--color-primary)] rounded-lg p-1.5 text-white shadow-md shadow-[var(--color-primary)]/25 flex items-center justify-center">
-                <img src="/payroll.png" alt="" className="h-8 w-8 object-contain" />
+              <div className="flex items-center justify-center">
+                <img src="/payroll.png" alt="" className="h-10 w-10 object-contain" />
               </div>
               <div className="flex flex-col">
                 <h1 className="text-[var(--color-text-primary)] text-lg font-bold leading-none">

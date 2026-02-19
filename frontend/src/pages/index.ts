@@ -6,4 +6,7 @@ export * from './InvoicesPage';
 export * from './CompanyProfilePage';
 export * from './Activity';
 export * from './RoadmapPreviewPage';
+export * from './DocusignCallbackPage';
+export * from './DocusignSignedPage';
+export * from './ContractsPage';
 
