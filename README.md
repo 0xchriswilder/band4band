@@ -7,7 +7,6 @@ A functioning **confidential payroll dApp** where a company can pay employees on
 
 <img width="1156" height="585" alt="image" src="https://github.com/user-attachments/assets/cc1c237c-1964-4dcf-831b-087d31c2dfcb" />
 
-<img width="1380" height="639" alt="image" src="https://github.com/user-attachments/assets/119e82b0-6f9d-4d6e-9930-9b5bc7f53f9f" />
 ---
 
 ## Bounty alignment
@@ -37,6 +36,8 @@ A functioning **confidential payroll dApp** where a company can pay employees on
   - Export payment history to CSV  
   - Optional unwrap of cUSDC back to USDC  
 
+
+<img width="1197" height="474" alt="image" src="https://github.com/user-attachments/assets/3c8a1922-8fad-40fb-bbcd-7c44f622af34" />
 ---
 
 ## Additional features (usability & real-world applicability)
@@ -60,6 +61,7 @@ All of the following are implemented and documented here for completeness.
 ## E-sign: bring your own DocuSign
 
 Employment contracts are sent and signed via **DocuSign**. The app does **not** use a single shared DocuSign account. Each employer connects **their own** DocuSign (sandbox for testing or production for go-live) via OAuth. Contract emails and branding come from the employer's account. Companies that already use DocuSign can connect their existing account and start sending contracts from the dApp. See **Contracts** in the app and `docs/E-SIGN-IMPLEMENTATION-PLAN.md` for implementation details.
+
 <img width="1380" height="639" alt="image" src="https://github.com/user-attachments/assets/119e82b0-6f9d-4d6e-9930-9b5bc7f53f9f" />
 <img width="1237" height="597" alt="image" src="https://github.com/user-attachments/assets/37154d4a-1e88-41b3-adc1-09846f383ca2" />
 ---
