@@ -1,7 +1,11 @@
+<img width="1317" height="609" alt="image" src="https://github.com/user-attachments/assets/4b0fc5b3-df72-4722-811a-083b7489f26f" />
+
 # Confidential Payroll dApp
 
 A functioning **confidential payroll dApp** where a company can pay employees on-chain while keeping individual salaries and transactions private using the **Zama Protocol** and **ERC-7984** confidential tokens.
 
+
+<img width="1156" height="585" alt="image" src="https://github.com/user-attachments/assets/cc1c237c-1964-4dcf-831b-087d31c2dfcb" />
 ---
 
 ## Bounty alignment
@@ -30,6 +34,8 @@ A functioning **confidential payroll dApp** where a company can pay employees on
   - Export payment history to CSV  
   - Optional unwrap of cUSDC back to USDC  
 
+
+<img width="1197" height="474" alt="image" src="https://github.com/user-attachments/assets/3c8a1922-8fad-40fb-bbcd-7c44f622af34" />
 ---
 
 ## Additional features (usability & real-world applicability)
