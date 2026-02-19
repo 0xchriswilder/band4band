@@ -5,4 +5,5 @@ export * from './EmployeeDashboard';
 export * from './InvoicesPage';
 export * from './CompanyProfilePage';
 export * from './Activity';
+export * from './RoadmapPreviewPage';
 

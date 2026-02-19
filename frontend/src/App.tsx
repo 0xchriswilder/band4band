@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
-import { Landing, EmployerDashboard, EmployerInvoices, EmployeeDashboard, InvoicesPage, Activity, CompanyProfilePage } from './pages';
+import { Landing, EmployerDashboard, EmployerInvoices, EmployeeDashboard, InvoicesPage, Activity, CompanyProfilePage, RoadmapPreviewPage } from './pages';
 
 export default function App() {
   return (
@@ -53,6 +53,14 @@ export default function App() {
           element={
             <AppLayout>
               <Activity />
+            </AppLayout>
+          }
+        />
+        <Route
+          path="/roadmap/:feature"
+          element={
+            <AppLayout>
+              <RoadmapPreviewPage />
             </AppLayout>
           }
         />

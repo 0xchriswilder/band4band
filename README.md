@@ -49,6 +49,22 @@ All of the following are implemented and documented here for completeness.
 
 ---
 
+## Roadmap (coming soon)
+
+The app sidebar includes a **Coming soon** section with preview pages for planned features. These are visible to users and judges so the direction of the product is clear. None of the roadmap items below require smart contract changes for their first version (e-sign, time tracking, PTO, and tax estimates are off-chain or display-only).
+
+| Sidebar item | Route | Description |
+|--------------|--------|-------------|
+| **Contracts (e-sign)** | `/roadmap/contracts` | E-sign employment contracts before onboarding (e.g. DocuSign sandbox or Inkless). Contracts signed off-chain; then employer onboard on-chain as today. |
+| **Time tracking** | `/roadmap/time-tracking` | Timesheets and approval workflow (Supabase); optional link to payroll run. No contract change. |
+| **Tax estimates** | `/roadmap/tax` | Display estimated withholdings; full tax filing would be a later phase. No contract change. |
+| **Benefits & deductions** | `/roadmap/benefits` | Preview of benefits/deductions UX; full automation would need contract support for split payments. |
+| **Bank payouts** | `/roadmap/bank-payouts` | Withdraw cUSDC/USDC to bank via partner off-ramp (third-party; no contract change). |
+
+Each roadmap page shows a short description and a "Planned" bullet list. E-sign, time tracking, PTO, and tax estimate (display-only) are the easier no-contract additions; tax filing, benefits automation, and bank payouts depend on external services or future contract changes.
+
+---
+
 ## Requirements (bounty checklist)
 
 | Requirement | Status |

@@ -12,6 +12,11 @@ import {
   Wallet,
   LogOut,
   Briefcase,
+  FileSignature,
+  Clock,
+  Calculator,
+  Package,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Badge } from '../ui/Badge';
@@ -29,6 +34,14 @@ const baseNavLinks = [
   { to: '/invoices', label: 'Invoices', icon: FileText },
   { to: '/employee', label: 'Employee Portal', icon: UserCircle },
   { to: '/activity', label: 'Transaction History', icon: BarChart3 },
+];
+
+const comingSoonLinks = [
+  { to: '/roadmap/contracts', label: 'Contracts (e-sign)', icon: FileSignature },
+  { to: '/roadmap/time-tracking', label: 'Time tracking', icon: Clock },
+  { to: '/roadmap/tax', label: 'Tax estimates', icon: Calculator },
+  { to: '/roadmap/benefits', label: 'Benefits & deductions', icon: Package },
+  { to: '/roadmap/bank-payouts', label: 'Bank payouts', icon: Landmark },
 ];
 
 interface SidebarProps {
@@ -140,6 +153,31 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 </NavLink>
               );
             })}
+            <div className="pt-4 mt-2 border-t border-[var(--color-border-light)]">
+              <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+                Coming soon
+              </p>
+              {comingSoonLinks.map(({ to, label, icon: Icon }) => {
+                const isActive = location.pathname === to;
+                return (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    onClick={closeMobile}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group',
+                      isActive
+                        ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                        : 'hover:bg-[var(--color-primary)]/5 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-primary)]'
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 opacity-70" />
+                    <span className="text-xs font-medium">{label}</span>
+                    <Badge variant="default" size="sm" className="ml-auto text-[10px]">Preview</Badge>
+                  </NavLink>
+                );
+              })}
+            </div>
           </nav>
 
           {/* Bottom: Connect / Wallet */}
