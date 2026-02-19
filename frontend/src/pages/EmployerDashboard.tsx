@@ -124,6 +124,7 @@ export function EmployerDashboard() {
   const [wrapAmount, setWrapAmount] = useState('');
   const [unwrapAmount, setUnwrapAmount] = useState('');
   const [isUnwrapping, setIsUnwrapping] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [paySalaries, setPaySalaries] = useState<Record<string, string>>({});
   const [employeeAddress, setEmployeeAddress] = useState('');
   const [employeeName, setEmployeeName] = useState('');
@@ -512,7 +513,7 @@ export function EmployerDashboard() {
                       <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Step 1: Register your payroll contract</h2>
                       <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Deploy a dedicated confidential payroll contract via the factory.</p>
                     </div>
-                    <Button size="lg" onClick={async () => { try { await registerEmployer(); toast.success('Payroll registered!'); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Registration failed')); }}} disabled={!isConnected || isWriting} loading={isWriting}>
+                    <Button size="lg" onClick={async () => { setIsRegistering(true); try { await registerEmployer(); toast.success('Payroll registered!'); } catch (err: any) { toast.error(getUserFriendlyErrorMessage(err, 'Registration failed')); } finally { setIsRegistering(false); }}} disabled={!isConnected || isWriting || isRegistering} loading={isWriting || isRegistering}>
                       <Building2 className="h-4 w-4" /> Register Payroll
                     </Button>
                   </div>

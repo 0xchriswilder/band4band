@@ -68,13 +68,6 @@ const features = [
   },
 ];
 
-const steps = [
-  { step: '01', title: 'Connect Wallet', desc: 'Link your company wallet on Sepolia testnet.' },
-  { step: '02', title: 'Register Payroll', desc: 'Deploy your dedicated confidential payroll contract.' },
-  { step: '03', title: 'Onboard Employees', desc: 'Add employees manually or import from CSV/XLSX.' },
-  { step: '04', title: 'Run Payroll', desc: 'Execute encrypted batch payments in one click.' },
-];
-
 const stats = [
   { label: 'Encryption Standard', value: 'FHE' },
   { label: 'Token Standard', value: 'ERC-7984' },
@@ -171,7 +164,7 @@ export function Landing() {
               </motion.div>
             </div>
 
-            {/* Right side — How it works card */}
+            {/* Right side — landing image */}
             <motion.div
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
@@ -179,23 +172,12 @@ export function Landing() {
               className="relative"
             >
               <div className="absolute -inset-4 rounded-3xl bg-gradient-to-tr from-[var(--color-primary)]/20 to-transparent blur-2xl" />
-              <div className="relative rounded-2xl border border-[var(--color-border-light)] bg-white p-8 shadow-2xl">
-                <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">
-                  How it works
-                </h3>
-                <div className="space-y-5">
-                  {steps.map((s) => (
-                    <div key={s.step} className="flex gap-4 items-start">
-                      <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-amber-500 text-white text-xs font-bold shadow-lg shadow-[var(--color-primary)]/20">
-                        {s.step}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-[var(--color-text-primary)]">{s.title}</div>
-                        <div className="text-xs text-[var(--color-text-secondary)] mt-0.5 leading-relaxed">{s.desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="relative rounded-2xl border border-[var(--color-border-light)] bg-white overflow-hidden shadow-2xl">
+                <img
+                  src="/landing.png"
+                  alt="Confidential payroll — connect, register, onboard, run payroll"
+                  className="w-full h-auto object-cover"
+                />
               </div>
             </motion.div>
           </div>

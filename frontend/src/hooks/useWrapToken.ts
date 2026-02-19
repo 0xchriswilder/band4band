@@ -20,6 +20,8 @@ export function useWrapToken() {
   const [usdcBalance, setUsdcBalance] = useState<bigint>(0n);
   const [allowance, setAllowance] = useState<bigint>(0n);
   const [isLoading, setIsLoading] = useState(false);
+  /** True from click until entire wrap flow (approve + wrap) finishes, so the button shows loading during both steps */
+  const [isWrappingFlow, setIsWrappingFlow] = useState(false);
 
   const fetchBalances = useCallback(async () => {
     if (!address) return;
@@ -80,22 +82,26 @@ export function useWrapToken() {
     if (!address || !isConnected) return null;
 
     const amount = parseAmount(amountHuman, TOKEN_CONFIG.decimals);
+    setIsWrappingFlow(true);
+    try {
+      // Auto-approve if needed
+      if (allowance < amount) {
+        await approveUsdc();
+      }
 
-    // Auto-approve if needed
-    if (allowance < amount) {
-      await approveUsdc();
+      const hash = await writeContractAsync({
+        address: CONTRACTS.CONF_TOKEN,
+        abi: CONF_TOKEN_ABI,
+        functionName: 'wrap',
+        args: [address, amount],
+      });
+
+      await client.waitForTransactionReceipt({ hash });
+      await fetchBalances();
+      return hash;
+    } finally {
+      setIsWrappingFlow(false);
     }
-
-    const hash = await writeContractAsync({
-      address: CONTRACTS.CONF_TOKEN,
-      abi: CONF_TOKEN_ABI,
-      functionName: 'wrap',
-      args: [address, amount],
-    });
-
-    await client.waitForTransactionReceipt({ hash });
-    await fetchBalances();
-    return hash;
   }, [address, isConnected, allowance, approveUsdc, writeContractAsync, fetchBalances]);
 
   return {
@@ -110,7 +116,7 @@ export function useWrapToken() {
       }
     },
     isLoading,
-    isWriting: isPending,
+    isWriting: isPending || isWrappingFlow,
     approveUsdc,
     wrapUsdc,
     refetch: fetchBalances,
