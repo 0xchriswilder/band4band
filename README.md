@@ -72,7 +72,6 @@ The app sidebar includes a **Coming soon** section with preview pages for planne
 
 | Sidebar item | Route | Description |
 |--------------|--------|-------------|
-| **Contracts (e-sign)** | `/roadmap/contracts` | E-sign employment contracts before onboarding (e.g. DocuSign sandbox or Inkless). Contracts signed off-chain; then employer onboard on-chain as today. |
 | **Time tracking** | `/roadmap/time-tracking` | Timesheets and approval workflow (Supabase); optional link to payroll run. No contract change. |
 | **Tax estimates** | `/roadmap/tax` | Display estimated withholdings; full tax filing would be a later phase. No contract change. |
 | **Benefits & deductions** | `/roadmap/benefits` | Preview of benefits/deductions UX; full automation would need contract support for split payments. |
