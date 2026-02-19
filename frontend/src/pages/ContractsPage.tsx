@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FileSignature, ExternalLink, Loader2, Send, Link2, CheckCircle2, Mail, UserCircle, ArrowLeft } from 'lucide-react';
+import { FileSignature, ExternalLink, Loader2, Send, Link2, CheckCircle2, Mail, UserCircle, ArrowLeft, Info } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { Avatar } from '../components/Avatar';
 import { getIndexerUrl } from '../lib/indexerApi';
 import { usePayrollEmployer } from '../hooks/usePayrollEmployer';
 import { useEmployerEmployeeNames } from '../hooks/usePayrollHistory';
@@ -32,7 +33,7 @@ type ContractRow = {
 export function ContractsPage() {
   const { address, isConnected } = useAccount();
   const { hasPayroll, localEmployees, payrollAddress, refetchEmployees, isLoadingPayroll } = usePayrollEmployer();
-  const { names: employeeNames, emails: employeeEmails } = useEmployerEmployeeNames();
+  const { names: employeeNames, emails: employeeEmails, avatars: employeeAvatars } = useEmployerEmployeeNames();
 
   const [docusignConnected, setDocusignConnected] = useState(false);
   const [contracts, setContracts] = useState<ContractRow[]>([]);
@@ -168,7 +169,7 @@ export function ContractsPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4">
+    <div className="max-w-6xl mx-auto py-8 px-4">
       <Link
         to={isNeither ? '/' : isEmployer ? '/employer' : '/employee'}
         className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-primary)] hover:underline mb-6"
@@ -200,6 +201,24 @@ export function ContractsPage() {
             </p>
           </div>
         </div>
+      </motion.div>
+
+      {/* About the contract — clarify generic vs your own DocuSign templates */}
+      <motion.div variants={fadeUp} className="mb-6">
+        <Card variant="bordered" padding="md" className="border-[var(--color-primary)]/20 bg-[var(--color-bg-light)]/50">
+          <div className="flex gap-3">
+            <Info className="h-5 w-5 text-[var(--color-primary)] shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <h3 className="font-semibold text-[var(--color-text-primary)] mb-1">About the contract content</h3>
+              <p className="text-[var(--color-text-secondary)] leading-relaxed mb-2">
+                By default the app can send a standard Employment Agreement for demo. To use your own contract, set up a template in DocuSign (see below) — then the employee sees and signs the document you chose.
+              </p>
+              <p className="text-[var(--color-text-secondary)] leading-relaxed">
+                <strong>Using your own contracts:</strong> If you have contracts or templates in DocuSign (e.g. in your DocuSign dashboard), set up a <strong>template</strong> in DocuSign (sandbox or production): add your document, add a signer role for the employee, and save. The app can send that template so employees see and sign <em>your</em> document. That way the employee sees your real contract and signs the one you chose.
+              </p>
+            </div>
+          </div>
+        </Card>
       </motion.div>
 
       {/* When connected but neither employer nor employee — address both companies and employees */}
@@ -298,13 +317,15 @@ export function ContractsPage() {
                       const name = employeeNames[addrLower] || '';
                       const email = employeeEmails[addrLower] || '';
                       const displayName = name || formatAddress(e.address, 8);
-                      const initial = (displayName[0] || '?').toUpperCase();
+                      const avatarUrl = employeeAvatars?.[addrLower];
                       return (
                         <li key={e.address} className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-[var(--color-bg-light)]/50 transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/15 flex items-center justify-center shrink-0 text-sm font-bold text-[var(--color-primary)]">
-                              {initial}
-                            </div>
+                            <Avatar
+                              src={avatarUrl}
+                              fallbackText={displayName}
+                              className="w-10 h-10 rounded-xl"
+                            />
                             <div className="min-w-0">
                               <p className="font-medium text-[var(--color-text-primary)] truncate">{displayName}</p>
                               <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{formatAddress(e.address, 6)}</p>

@@ -109,6 +109,14 @@ After steps 1–3 (and saving), you have everything to implement: Integration Ke
 
 ---
 
+## Contract content: generic vs your own DocuSign templates
+
+- **Current behavior:** The app sends a **generic** Employment Agreement that is generated in code (HTML converted to PDF in the indexer). The employee sees a short, standard demo document — you do **not** choose a contract from your DocuSign account or from your email before sending. In sandbox/demo, the DocuSign UI will show “DEMONSTRATION DOCUMENT ONLY” and the text we built in.
+- **Seeing your own contracts before sending:** The app does **not** yet read or list contracts you have in DocuSign (e.g. templates, or documents in your DocuSign inbox). So you cannot “pick which contract the employee must sign” from your DocuSign library inside the app.
+- **Using your own templates (future):** If you already have contracts or templates in DocuSign (as a company or from your email), you can create a **template** in the DocuSign dashboard (sandbox or production): upload your PDF, add a signer role (e.g. “Employee”), save, and copy the **Template ID**. The app could then be extended to accept a Template ID (e.g. in env or in the UI), and the indexer would create envelopes from that template instead of the generic document. The employee would then see and sign **your** contract. Until that is implemented, all sent contracts use the built-in generic text.
+
+---
+
 ## Production deployment (Netlify + Railway)
 
 When the app is deployed (e.g. frontend at **https://fhecpayroll.netlify.app**, indexer on **Railway**), set the following.
