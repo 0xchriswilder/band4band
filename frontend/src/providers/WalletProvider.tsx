@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { getDefaultConfig, RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, http } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -42,6 +42,10 @@ export function WalletProvider({ children }: WalletProviderProps) {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           modalSize="compact"
+          theme={lightTheme({
+            accentColor: '#FF8C00',
+            accentColorForeground: 'white',
+          })}
           appInfo={{
             appName: 'Confidential Payroll',
             learnMoreUrl: 'https://zama.ai',

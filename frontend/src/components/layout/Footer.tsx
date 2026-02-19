@@ -120,10 +120,10 @@ export function Footer() {
           className="bg-white py-12 sm:py-16 md:py-20 flex flex-col items-stretch justify-center gap-2 w-full min-w-0"
           style={{ paddingLeft: 'max(1rem, env(safe-area-inset-left))', paddingRight: 'max(1rem, env(safe-area-inset-right))' }}
         >
-          <div className="flex w-full items-center justify-center px-4 sm:px-6 lg:px-8 min-w-0" aria-hidden>
+          <div className="flex w-full items-center justify-center px-4 sm:px-6 lg:px-8 min-w-0 overflow-x-auto" aria-hidden>
             <span
-              className="font-black tracking-tighter text-[var(--color-primary)] select-none leading-none whitespace-nowrap"
-              style={{ fontSize: 'clamp(3rem, 18vw, 14rem)' }}
+              className="font-black tracking-tighter text-[var(--color-primary)] select-none leading-none text-center whitespace-nowrap min-w-0"
+              style={{ fontSize: 'clamp(1.5rem, 8vw, 14rem)' }}
             >
               PAYROLL GUARD
             </span>

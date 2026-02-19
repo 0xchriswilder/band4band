@@ -41,6 +41,8 @@ export function ContractsPage() {
 
   /** Employer = has a payroll (once loaded). While payroll is still loading, treat as employer so we don't flash employee-only view. */
   const isEmployer = !!address && (hasPayroll || isLoadingPayroll);
+  /** Connected but no payroll and not loading — neither employer nor employee in the system yet; show message for both. */
+  const isNeither = !!address && !isLoadingPayroll && !hasPayroll;
   const employerAddr = (address ?? '').toLowerCase();
   const employeeAddr = (address ?? '').toLowerCase();
 
@@ -168,7 +170,7 @@ export function ContractsPage() {
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
       <Link
-        to={isEmployer ? '/employer' : '/employee'}
+        to={isNeither ? '/' : isEmployer ? '/employer' : '/employee'}
         className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-primary)] hover:underline mb-6"
       >
         <ArrowLeft className="h-4 w-4" /> Back to dashboard
@@ -192,11 +194,39 @@ export function ContractsPage() {
             <p className="text-sm text-[var(--color-text-secondary)] mt-1 max-w-lg">
               {isEmployer
                 ? 'Send employment agreements via DocuSign. Employees sign before onboarding — one flow, fully compliant.'
-                : 'View and sign contracts sent by your employer. Open the e-sign page to complete your signature.'}
+                : isNeither
+                  ? 'Send or sign employment agreements with DocuSign. Get started as a company or wait for your employer to send you a contract.'
+                  : 'View and sign contracts sent by your employer. Open the e-sign page to complete your signature.'}
             </p>
           </div>
         </div>
       </motion.div>
+
+      {/* When connected but neither employer nor employee — address both companies and employees */}
+      {isNeither && (
+        <motion.div variants={fadeUp} className="mb-6">
+          <Card variant="elevated" padding="lg" className="border border-[var(--color-border-light)]">
+            <h2 className="font-bold text-[var(--color-text-primary)] mb-4">Get started</h2>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div className="rounded-xl border border-[var(--color-border-light)] bg-[var(--color-bg-light)]/30 p-5">
+                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Setting up as a company?</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mb-4 leading-relaxed">
+                  Create a payroll first from the Employer Dashboard. After that, connect your official DocuSign account here to send employment contracts to your employees — they sign before you onboard them on-chain.
+                </p>
+                <Link to="/employer" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-primary)] hover:underline">
+                  Create payroll &rarr;
+                </Link>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border-light)] bg-[var(--color-bg-light)]/30 p-5">
+                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Here as an employee?</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                  Contracts sent by your employer will appear in &quot;My contracts&quot; below. You can open the e-sign page to complete your signature when you receive one.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+      )}
 
       <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-6">
         {/* Employer: DocuSign connection */}
@@ -233,10 +263,11 @@ export function ContractsPage() {
           </motion.div>
         )}
 
-        {/* Employer: Send contract — only when we know they have a payroll and DocuSign is connected. Plain div so list is always visible (no opacity animation). */}
+        {/* Contracts: grid so Send + Sent are side by side on xl when employer has DocuSign; otherwise Sent/My only. */}
+        <div className={isEmployer && hasPayroll && docusignConnected ? 'grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch' : ''}>
         {isEmployer && hasPayroll && docusignConnected && (
-          <div>
-            <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] p-0">
+          <div className="min-w-0 flex flex-col">
+            <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] p-0 flex-1 flex flex-col">
               <div className="bg-gradient-to-r from-[var(--color-primary)]/8 to-transparent border-b border-[var(--color-border-light)] px-6 py-4">
                 <h2 className="font-bold text-[var(--color-text-primary)]">Send contract</h2>
                 <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">Choose an employee to send an employment agreement for e-signature.</p>
@@ -306,16 +337,16 @@ export function ContractsPage() {
             </Card>
           </div>
         )}
-
-        {/* Sent contracts / My contracts */}
-        <motion.div variants={fadeUp}>
-          <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] p-0">
+            <motion.div variants={fadeUp} className="min-w-0 flex flex-col">
+          <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] p-0 flex-1 flex flex-col min-h-0">
             <div className="bg-gradient-to-r from-[var(--color-primary)]/8 to-transparent border-b border-[var(--color-border-light)] px-6 py-4">
               <h2 className="font-bold text-[var(--color-text-primary)]">
                 {isEmployer ? 'Sent contracts' : 'My contracts'}
               </h2>
               <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
-                {isEmployer ? 'Contracts you’ve sent for e-signature.' : 'Agreements sent by your employer — open to sign.'}
+                {isEmployer ? 'Contracts you’ve sent for e-signature.' : isNeither
+                    ? 'Contracts you send (as employer) or receive (as employee) will appear here.'
+                    : 'Agreements sent by your employer — open to sign.'}
               </p>
             </div>
             <div className="p-6">
@@ -330,7 +361,11 @@ export function ContractsPage() {
                   </div>
                   <p className="text-sm font-medium text-[var(--color-text-secondary)]">No contracts yet</p>
                   <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
-                    {isEmployer ? 'Send a contract using the section above.' : 'Your employer will send you a contract when ready.'}
+                    {isEmployer
+                    ? 'Send a contract using the section above.'
+                    : isNeither
+                      ? 'Create a payroll and send contracts as an employer, or wait for your employer to send you one as an employee.'
+                      : 'Your employer will send you a contract when ready.'}
                   </p>
                 </div>
               ) : isEmployer ? (
@@ -396,6 +431,7 @@ export function ContractsPage() {
             </div>
           </Card>
         </motion.div>
+        </div>
       </motion.div>
 
       {/* Powered by DocuSign */}
