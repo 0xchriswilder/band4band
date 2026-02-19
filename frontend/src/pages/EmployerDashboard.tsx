@@ -50,6 +50,7 @@ import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
 import { formatAddress, formatAmount, parseAmount, getUserFriendlyErrorMessage } from '../lib/utils';
 import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
+import { Avatar } from '../components/Avatar';
 import { useEmployerInvoices, useEmployerLatestPaymentHandles, useEmployerEmployeeNames } from '../hooks/usePayrollHistory';
 import { NextPayDateCard } from '../features/payroll/components/NextPayDateCard';
 import { PayrollRunSummarySection } from '../features/payroll/components/PayrollRunSummarySection';
@@ -160,7 +161,7 @@ export function EmployerDashboard() {
   const [invoiceMonth, setInvoiceMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { invoicedAddresses } = useEmployerInvoices(invoiceMonth);
   const { handles: salaryHandles, reload: reloadPaymentHandles } = useEmployerLatestPaymentHandles();
-  const { names: employeeNames, frequencies: employeeFrequencies, emails: employeeEmails, upsertName: upsertEmployeeName, reload: reloadEmployeeNames } = useEmployerEmployeeNames();
+  const { names: employeeNames, frequencies: employeeFrequencies, emails: employeeEmails, avatars: employeeAvatars, upsertName: upsertEmployeeName, reload: reloadEmployeeNames } = useEmployerEmployeeNames();
 
   const handleFileImport = async (file: File) => {
     setIsImporting(true);
@@ -848,11 +849,18 @@ export function EmployerDashboard() {
                                 <tr key={`${e.address}-${i}`} className="hover:bg-[var(--color-primary)]/5 transition-colors">
                                   <td className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">{i + 1}</td>
                                   <td className="px-4 py-3">
-                                    <div>
-                                      <span className="text-sm font-medium text-[var(--color-text-primary)]">{employeeNames[addrLower] || '—'}</span>
-                                      {employeeFrequencies[addrLower] && (
-                                        <span className="block text-[10px] text-[var(--color-text-tertiary)] capitalize mt-0.5">{employeeFrequencies[addrLower] === 'biweekly' ? 'Bi-weekly' : employeeFrequencies[addrLower]}</span>
-                                      )}
+                                    <div className="flex items-center gap-3">
+                                      <Avatar
+                                        src={employeeAvatars?.[addrLower]}
+                                        fallbackText={employeeNames[addrLower] || formatAddress(e.address, 8)}
+                                        className="w-9 h-9 rounded-lg shrink-0"
+                                      />
+                                      <div>
+                                        <span className="text-sm font-medium text-[var(--color-text-primary)]">{employeeNames[addrLower] || '—'}</span>
+                                        {employeeFrequencies[addrLower] && (
+                                          <span className="block text-[10px] text-[var(--color-text-tertiary)] capitalize mt-0.5">{employeeFrequencies[addrLower] === 'biweekly' ? 'Bi-weekly' : employeeFrequencies[addrLower]}</span>
+                                        )}
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="px-4 py-3">

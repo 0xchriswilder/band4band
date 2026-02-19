@@ -391,15 +391,20 @@ export function ContractsPage() {
                 </div>
               ) : isEmployer ? (
                 <ul className="space-y-3">
-                  {contracts.map((c) => (
+                  {contracts.map((c) => {
+                    const empAddr = c.employee_address.toLowerCase();
+                    const empName = employeeNames?.[empAddr] || formatAddress(c.employee_address, 8);
+                    return (
                     <li
                       key={c.id}
                       className="flex items-center justify-between gap-4 py-3 px-4 rounded-xl bg-[var(--color-bg-light)]/50 border border-[var(--color-border-light)]"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
-                          <UserCircle className="h-4 w-4 text-[var(--color-primary)]" />
-                        </div>
+                        <Avatar
+                          src={employeeAvatars?.[empAddr]}
+                          fallbackText={empName}
+                          className="w-9 h-9 rounded-lg"
+                        />
                         <div>
                           <p className="font-medium text-[var(--color-text-primary)] font-mono text-sm">{formatAddress(c.employee_address, 8)}</p>
                           <div className="flex items-center gap-2 mt-0.5">
@@ -410,7 +415,8 @@ export function ContractsPage() {
                         </div>
                       </div>
                     </li>
-                  ))}
+                  );
+                  })}
                 </ul>
               ) : (
                 <div className="space-y-4">

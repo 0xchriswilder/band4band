@@ -63,7 +63,7 @@ All of the following are implemented and documented here for completeness.
 Employment contracts are sent and signed via **DocuSign**. The app does **not** use a single shared DocuSign account. Each employer connects **their own** DocuSign (sandbox for testing or production for go-live) via OAuth. Contract emails and branding come from the employer's account. Companies that already use DocuSign can connect their existing account and start sending contracts from the dApp. See **Contracts** in the app and `docs/E-SIGN-IMPLEMENTATION-PLAN.md` for implementation details.
 
 <img width="1380" height="639" alt="image" src="https://github.com/user-attachments/assets/119e82b0-6f9d-4d6e-9930-9b5bc7f53f9f" />
-<img width="1237" height="597" alt="image" src="https://github.com/user-attachments/assets/37154d4a-1e88-41b3-adc1-09846f383ca2" />
+<img width="1344" height="602" alt="image" src="https://github.com/user-attachments/assets/ec88978e-882d-45c2-a328-c1c37bab5b12" />
 ---
 
 ## Roadmap (coming soon)
