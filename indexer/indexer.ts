@@ -414,9 +414,14 @@ async function getPayrollAddressesFromChain(): Promise<string[]> {
   const employers = (await factory.getAllEmployers()) as string[];
   const addresses: string[] = [];
   for (const emp of employers) {
-    const payroll = (await factory.getPayroll(emp)) as string;
-    if (payroll && ethers.getAddress(payroll) !== ethers.ZeroAddress) {
-      addresses.push(payroll.toLowerCase());
+    try {
+      const payroll = (await factory.getPayroll(emp)) as string;
+      if (payroll && ethers.getAddress(payroll) !== ethers.ZeroAddress) {
+        addresses.push(payroll.toLowerCase());
+      }
+    } catch {
+      // getPayroll reverts for employers with no payroll, or RPC returns "missing revert data" / internal error — skip this employer
+      continue;
     }
   }
   return addresses;
@@ -436,8 +441,8 @@ async function runIndexer(): Promise<{ payrollCount: number }> {
   let list: string[] = [];
   try {
     list = await getPayrollAddressesFromChain();
-  } catch (err: any) {
-    console.error("Chain payroll list error:", shortError(err));
+  } catch {
+    // RPC or getAllEmployers() failure — indexer will retry next cycle
   }
 
   const chunks = [];
