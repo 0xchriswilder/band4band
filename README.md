@@ -148,7 +148,6 @@ npx hardhat test
 
 
   25 passing (911ms)
-  3 pending
 ```
 
 ---
