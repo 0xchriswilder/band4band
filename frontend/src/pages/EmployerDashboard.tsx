@@ -616,14 +616,14 @@ export function EmployerDashboard() {
                       <Input label="Employee Wallet Address" value={employeeAddress} onChange={(e) => setEmployeeAddress(e.target.value)} placeholder="0x..." icon={<Hash className="h-4 w-4" />} />
                       <div>
                         <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5">Salary Amount</label>
-                        <div className="flex gap-2">
-                          <div className="flex-1 relative">
+                        <div className="grid grid-cols-2 gap-2 max-w-sm">
+                          <div className="min-w-0">
                             <Input value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="2500.00" hint="Amount (6 decimals). Will be encrypted before submitting." icon={<DollarSign className="h-4 w-4" />} />
                           </div>
-                          <div className="flex gap-1.5 shrink-0">
-                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary)]/10" title={TOKEN_CONFIG.symbol}>
-                              <UsdcLogo size={20} />
-                              <span className="text-sm font-semibold text-[var(--color-text-primary)]">{TOKEN_CONFIG.symbol}</span>
+                          <div className="min-w-0 flex items-start">
+                            <div className="flex items-center justify-center gap-1.5 w-full h-10 px-3 rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary)]/10" title={TOKEN_CONFIG.symbol}>
+                              <UsdcLogo size={14} />
+                              <span className="text-xs font-semibold text-[var(--color-text-primary)]">{TOKEN_CONFIG.symbol}</span>
                             </div>
                           </div>
                         </div>
