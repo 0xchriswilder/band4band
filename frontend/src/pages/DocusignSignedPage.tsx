@@ -5,7 +5,7 @@ import { getIndexerUrl } from '../lib/indexerApi';
 
 export function DocusignSignedPage() {
   const [searchParams] = useSearchParams();
-  const envelopeId = searchParams.get('envelope_id');
+  const envelopeId = searchParams.get('envelope_id') || searchParams.get('envelopeId');
 
   useEffect(() => {
     if (!envelopeId) return;
@@ -26,12 +26,20 @@ export function DocusignSignedPage() {
       <p className="text-sm text-[var(--color-text-secondary)] text-center max-w-sm">
         You’ve completed the signature. Your employer will see the updated status and can proceed with onboarding when ready.
       </p>
-      <Link
-        to="/employee"
-        className="text-[var(--color-primary)] font-medium hover:underline"
-      >
-        Back to Employee Portal
-      </Link>
+      <div className="flex flex-wrap items-center justify-center gap-4">
+        <Link
+          to="/contracts"
+          className="text-[var(--color-primary)] font-medium hover:underline"
+        >
+          View My contracts
+        </Link>
+        <Link
+          to="/employee"
+          className="text-[var(--color-primary)] font-medium hover:underline"
+        >
+          Back to Employee Portal
+        </Link>
+      </div>
     </div>
   );
 }

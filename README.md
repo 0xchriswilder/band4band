@@ -1,4 +1,4 @@
-<img width="1317" height="609" alt="image" src="https://github.com/user-attachments/assets/4b0fc5b3-df72-4722-811a-083b7489f26f" />
+<img width="1737" height="779" alt="image" src="https://github.com/user-attachments/assets/25d73702-a113-4d6d-b268-099c2cc8c60c" />
 
 # Confidential Payroll dApp
 
@@ -62,7 +62,7 @@ All of the following are implemented and documented here for completeness.
 
 Employment contracts are sent and signed via **DocuSign**. The app does **not** use a single shared DocuSign account. Each employer connects **their own** DocuSign (sandbox for testing or production for go-live) via OAuth. Contract emails and branding come from the employer's account. Companies that already use DocuSign can connect their existing account and start sending contracts from the dApp. See **Contracts** in the app and `docs/E-SIGN-IMPLEMENTATION-PLAN.md` for implementation details.
 
-<img width="1380" height="639" alt="image" src="https://github.com/user-attachments/assets/119e82b0-6f9d-4d6e-9930-9b5bc7f53f9f" />
+<img width="1424" height="643" alt="image" src="https://github.com/user-attachments/assets/5476ae10-f31f-472c-9708-a448d7dd7734" />
 <img width="1344" height="602" alt="image" src="https://github.com/user-attachments/assets/ec88978e-882d-45c2-a328-c1c37bab5b12" />
 ---
 

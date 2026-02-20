@@ -329,32 +329,40 @@ export function useSubmitEmployeeInvoice() {
   return { submit, isSubmitting, error };
 }
 
-/* ─── Employee: list their own submitted invoices (with paid status) ─── */
+/* ─── Employee: list their own submitted invoices (direct Supabase, no API) ─── */
 
 export function useEmployeeInvoices() {
   const { address } = useAccount();
   const [invoices, setInvoices] = useState<EmployeeInvoiceRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async () => {
-    if (!address) return;
+    if (!address) {
+      setInvoices([]);
+      setError(null);
+      return;
+    }
     setIsLoading(true);
+    setError(null);
     try {
-      const { data, error } = await supabase
+      const { data, error: err } = await supabase
         .from('employee_invoices')
         .select('*')
         .eq('employee_address', address.toLowerCase())
         .order('month_due', { ascending: false });
 
-      if (error) {
-        console.error('[Supabase] employee invoices error:', error.message);
+      if (err) {
+        console.error('[Supabase] employee invoices error:', err.message);
         setInvoices([]);
+        setError(err.message);
         return;
       }
       setInvoices((data as EmployeeInvoiceRow[]) ?? []);
     } catch (err) {
       console.error('[Supabase] employee invoices error:', err);
       setInvoices([]);
+      setError(err instanceof Error ? err.message : 'Failed to load invoices');
     } finally {
       setIsLoading(false);
     }
@@ -364,7 +372,15 @@ export function useEmployeeInvoices() {
     fetch();
   }, [fetch]);
 
-  return { invoices, isLoading, reload: fetch };
+  useEffect(() => {
+    const onFocus = () => {
+      if (address) fetch();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [address, fetch]);
+
+  return { invoices, isLoading, error, reload: fetch };
 }
 
 /* ─── Employer: employee display names (set at onboarding) ─── */
@@ -517,35 +533,56 @@ export function useEmployerLatestPaymentHandles() {
   return { handles, isLoading, reload: fetch };
 }
 
-/* ─── Employer: invoices for a given month ─── */
+/* ─── Employer: invoices for a given month (direct Supabase, no API) ─── */
+
+const INVOICES_FETCH_TIMEOUT_MS = 15000;
 
 export function useEmployerInvoices(monthDue: string) {
   const { address } = useAccount();
   const [invoices, setInvoices] = useState<EmployeeInvoiceRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async () => {
-    if (!address || !monthDue) return;
+    if (!address || !monthDue) {
+      setInvoices([]);
+      setError(null);
+      return;
+    }
     setIsLoading(true);
+    setError(null);
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      setError('Request timed out. Click Refresh to try again.');
+      setIsLoading(false);
+    }, INVOICES_FETCH_TIMEOUT_MS);
     try {
-      const { data, error } = await supabase
+      const { data, error: err } = await supabase
         .from('employee_invoices')
         .select('*')
         .eq('employer_address', address.toLowerCase())
         .eq('month_due', monthDue)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('[Supabase] employer invoices error:', error.message);
+      clearTimeout(timeoutId);
+      if (timedOut) return;
+      if (err) {
+        console.error('[Supabase] employer invoices error:', err.message);
         setInvoices([]);
+        setError(err.message);
         return;
       }
       setInvoices((data as EmployeeInvoiceRow[]) ?? []);
     } catch (err) {
+      clearTimeout(timeoutId);
+      if (timedOut) return;
+      const message = err instanceof Error ? err.message : 'Failed to load invoices';
       console.error('[Supabase] employer invoices error:', err);
       setInvoices([]);
+      setError(message);
     } finally {
-      setIsLoading(false);
+      if (!timedOut) setIsLoading(false);
     }
   }, [address, monthDue]);
 
@@ -553,9 +590,17 @@ export function useEmployerInvoices(monthDue: string) {
     fetch();
   }, [fetch]);
 
+  useEffect(() => {
+    const onFocus = () => {
+      if (address && monthDue) fetch();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [address, monthDue, fetch]);
+
   const invoicedAddresses = new Set(invoices.map((i) => i.employee_address.toLowerCase()));
 
-  return { invoices, invoicedAddresses, isLoading, reload: fetch };
+  return { invoices, invoicedAddresses, isLoading, error, reload: fetch };
 }
 
 /* ─── Mark invoices as paid (frontend only: call as soon as payment tx is confirmed, not by indexer) ─── */

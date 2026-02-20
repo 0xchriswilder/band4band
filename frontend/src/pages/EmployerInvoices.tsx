@@ -22,7 +22,7 @@ const fadeUp = {
 export function EmployerInvoices() {
   const { isConnected, address: employerAddress } = useAccount();
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const { invoices, isLoading, reload } = useEmployerInvoices(month);
+  const { invoices, isLoading, error, reload } = useEmployerInvoices(month);
   const { handles: salaryHandles, reload: reloadPaymentHandles } = useEmployerLatestPaymentHandles();
   const {
     payOneSalary,
@@ -154,7 +154,7 @@ export function EmployerInvoices() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
@@ -182,17 +182,36 @@ export function EmployerInvoices() {
             onChange={(e) => setMonth(e.target.value)}
             className="rounded-lg border border-[var(--color-border-input)] bg-white px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
           />
-          <Button variant="secondary" size="sm" onClick={() => reload()} disabled={isLoading} title="Refresh">
+          <Button variant="secondary" size="sm" onClick={() => reload()} disabled={isLoading} title="Refresh invoices from Supabase">
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </motion.div>
 
+      {error && (
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-amber-800 dark:text-amber-200">{error}</p>
+          <Button variant="secondary" size="sm" onClick={() => reload()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+        </motion.div>
+      )}
+
       <motion.div initial="hidden" animate="visible" variants={fadeUp}>
         <Card variant="elevated" padding="lg">
           {isLoading ? (
             <div className="py-16 text-center">
-              <p className="text-[var(--color-text-tertiary)]">Loading invoices…</p>
+              <p className="text-[var(--color-text-tertiary)]">Loading invoices from database…</p>
+              <Button variant="ghost" size="sm" className="mt-3" onClick={() => reload()} disabled={isLoading}>
+                Taking long? Click to retry
+              </Button>
+            </div>
+          ) : error ? (
+            <div className="py-16 text-center">
+              <p className="text-[var(--color-text-secondary)] mb-2">Could not load invoices.</p>
+              <Button variant="primary" size="sm" onClick={() => reload()}>
+                <RefreshCw className="h-4 w-4 mr-2" /> Retry
+              </Button>
             </div>
           ) : invoices.length === 0 ? (
             <div className="py-16 text-center">

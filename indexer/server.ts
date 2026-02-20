@@ -190,6 +190,20 @@ app.get("/api/docusign/status", async (req, res) => {
   res.json({ connected: !!data });
 });
 
+app.post("/api/docusign/disconnect", async (req, res) => {
+  const employer = (req.body?.employer_address as string)?.toLowerCase();
+  if (!employer) return res.status(400).json({ error: "Missing employer_address" });
+  const { error } = await supabase
+    .from("employer_docusign_tokens")
+    .delete()
+    .eq("employer_address", employer);
+  if (error) {
+    console.error("[DocuSign] disconnect:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
+  res.json({ ok: true });
+});
+
 app.get("/api/docusign/auth-url", (req, res) => {
   const redirectUri = (req.query.redirect_uri as string)?.trim() || "";
   const state = (req.query.state as string)?.trim() || "";
@@ -411,6 +425,213 @@ app.get("/api/docusign/contracts", async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
   res.json({ data: data ?? [] });
+});
+
+/* ─── In-app contracts: file upload for attachments ─── */
+
+const CONTRACT_ATTACHMENTS_BUCKET = "contract-attachments";
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
+
+app.post("/api/in-app-contracts/upload", async (req, res) => {
+  const { file: base64, filename, contentType } = req.body as {
+    file?: string;
+    filename?: string;
+    contentType?: string;
+  };
+  if (!base64 || typeof base64 !== "string" || !filename) {
+    return res.status(400).json({ error: "Missing file (base64) or filename" });
+  }
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(base64, "base64");
+  } catch {
+    return res.status(400).json({ error: "Invalid base64 file" });
+  }
+  if (buffer.length > MAX_ATTACHMENT_SIZE) {
+    return res.status(400).json({ error: "File too large (max 10MB)" });
+  }
+  const ext = (filename.split(".").pop() || "").toLowerCase();
+  const allowed = ["pdf", "jpg", "jpeg", "png"];
+  if (!allowed.includes(ext)) {
+    return res.status(400).json({ error: "Allowed formats: PDF, JPG, PNG" });
+  }
+  const path = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  try {
+    const { data: bucketList } = await supabase.storage.listBuckets();
+    const exists = bucketList?.some((b) => b.name === CONTRACT_ATTACHMENTS_BUCKET);
+    if (!exists) {
+      await supabase.storage.createBucket(CONTRACT_ATTACHMENTS_BUCKET, { public: true });
+    }
+    const { error } = await supabase.storage
+      .from(CONTRACT_ATTACHMENTS_BUCKET)
+      .upload(path, buffer, {
+        contentType: contentType || (ext === "pdf" ? "application/pdf" : `image/${ext === "jpg" ? "jpeg" : ext}`),
+        upsert: false,
+      });
+    if (error) throw error;
+    const { data: urlData } = supabase.storage.from(CONTRACT_ATTACHMENTS_BUCKET).getPublicUrl(path);
+    res.json({ url: urlData.publicUrl });
+  } catch (err: unknown) {
+    console.error("[in-app-contracts/upload]", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
+  }
+});
+
+/* ─── In-app contracts (Deel-style, no DocuSign) ─── */
+
+app.post("/api/in-app-contracts", async (req, res) => {
+  const {
+    employer_address,
+    payroll_address,
+    contract_type,
+    form_data,
+    employee_address,
+  } = req.body as {
+    employer_address?: string;
+    payroll_address?: string;
+    contract_type?: string;
+    form_data?: Record<string, unknown>;
+    employee_address?: string;
+  };
+  const empAddr = (employer_address ?? "").toLowerCase();
+  if (!empAddr || !payroll_address) {
+    return res.status(400).json({ error: "Missing employer_address or payroll_address" });
+  }
+  const validTypes = ["fixed_rate", "pay_as_you_go", "milestone"];
+  if (!contract_type || !validTypes.includes(contract_type)) {
+    return res.status(400).json({ error: "contract_type must be one of: fixed_rate, pay_as_you_go, milestone" });
+  }
+  const payload = {
+    employer_address: empAddr,
+    payroll_address: (payroll_address as string).toLowerCase(),
+    employee_address: employee_address ? (employee_address as string).toLowerCase() : null,
+    contract_type,
+    form_data: form_data ?? {},
+    status: employee_address ? "assigned" : "draft",
+  };
+  const { data, error } = await supabase
+    .from("in_app_contracts")
+    .insert(payload)
+    .select("id, employer_address, payroll_address, employee_address, contract_type, status, created_at")
+    .single();
+  if (error) {
+    console.error("[in-app-contracts] create:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
+  res.status(201).json(data);
+});
+
+app.get("/api/in-app-contracts", async (req, res) => {
+  const by = req.query.by as string;
+  const address = (req.query.address as string)?.toLowerCase();
+  if (!by || !address) {
+    return res.status(400).json({ error: "Missing by (employee|employer) or address" });
+  }
+  const col = by === "employee" ? "employee_address" : "employer_address";
+  const { data, error } = await supabase
+    .from("in_app_contracts")
+    .select("*")
+    .eq(col, address)
+    .order("created_at", { ascending: false });
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+  res.json({ data: data ?? [] });
+});
+
+app.get("/api/in-app-contracts/:id", async (req, res) => {
+  const id = req.params.id;
+  const address = (req.query.address as string)?.toLowerCase();
+  if (!address) {
+    return res.status(400).json({ error: "Missing address query (connected wallet)" });
+  }
+  const { data: row, error } = await supabase
+    .from("in_app_contracts")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error || !row) {
+    return res.status(404).json({ error: "Contract not found" });
+  }
+  const isEmployer = row.employer_address === address;
+  const isEmployee = row.employee_address && row.employee_address === address;
+  if (!isEmployer && !isEmployee) {
+    return res.status(403).json({ error: "You do not have access to this contract" });
+  }
+  res.json(row);
+});
+
+app.patch("/api/in-app-contracts/:id", async (req, res) => {
+  const id = req.params.id;
+  const { employer_address, employee_address } = req.body as {
+    employer_address?: string;
+    employee_address?: string;
+  };
+  const empAddr = (employer_address ?? "").toLowerCase();
+  if (!empAddr) {
+    return res.status(400).json({ error: "Missing employer_address" });
+  }
+  const { data: row, error: fetchErr } = await supabase
+    .from("in_app_contracts")
+    .select("id, employer_address, status")
+    .eq("id", id)
+    .single();
+  if (fetchErr || !row) {
+    return res.status(404).json({ error: "Contract not found" });
+  }
+  if (row.employer_address !== empAddr) {
+    return res.status(403).json({ error: "Only the employer can update this contract" });
+  }
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (employee_address !== undefined) {
+    updates.employee_address = (employee_address as string).toLowerCase();
+    updates.status = "assigned";
+  }
+  const { data, error } = await supabase
+    .from("in_app_contracts")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+  res.json(data);
+});
+
+app.post("/api/in-app-contracts/:id/sign", async (req, res) => {
+  const id = req.params.id;
+  const { employee_address } = req.body as { employee_address?: string };
+  const signerAddr = (employee_address ?? "").toLowerCase();
+  if (!signerAddr) {
+    return res.status(400).json({ error: "Missing employee_address" });
+  }
+  const { data: row, error: fetchErr } = await supabase
+    .from("in_app_contracts")
+    .select("id, employee_address, status")
+    .eq("id", id)
+    .single();
+  if (fetchErr || !row) {
+    return res.status(404).json({ error: "Contract not found" });
+  }
+  if (row.employee_address !== signerAddr) {
+    return res.status(403).json({ error: "Only the assigned employee can sign this contract" });
+  }
+  if (row.status === "signed") {
+    return res.json({ ok: true, already: true });
+  }
+  const { error: updateErr } = await supabase
+    .from("in_app_contracts")
+    .update({
+      status: "signed",
+      signed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (updateErr) {
+    return res.status(500).json({ error: updateErr.message });
+  }
+  res.json({ ok: true });
 });
 
 /* ─── Start ─── */

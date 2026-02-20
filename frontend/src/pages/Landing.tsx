@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield,
   Lock,
@@ -11,9 +11,6 @@ import {
   EyeOff,
   FileSpreadsheet,
   ChevronRight,
-  TrendingUp,
-  BarChart3,
-  Globe,
   CheckCircle2,
   Wallet,
 } from 'lucide-react';
@@ -30,42 +27,12 @@ const fadeUp = {
 };
 
 const features = [
-  {
-    icon: Lock,
-    title: 'Encrypted Salaries',
-    description:
-      'Salaries are encrypted using FHE before being stored on-chain. Only the employer and the respective employee can decrypt.',
-  },
-  {
-    icon: Zap,
-    title: 'One-Click Payroll',
-    description:
-      'Execute batch confidential transfers in a single transaction. All payouts stay private while provably correct.',
-  },
-  {
-    icon: Eye,
-    title: 'Employee Verification',
-    description:
-      'Employees can independently verify and decrypt their own payments using their wallet signature.',
-  },
-  {
-    icon: FileSpreadsheet,
-    title: 'CSV / XLSX Import',
-    description:
-      'Bulk-import employees and salaries from spreadsheets. Onboard entire teams in seconds.',
-  },
-  {
-    icon: Users,
-    title: 'Per-Employer Contracts',
-    description:
-      'Each employer gets a dedicated Payroll contract via the factory pattern, ensuring data isolation.',
-  },
-  {
-    icon: EyeOff,
-    title: 'Truly Confidential',
-    description:
-      'Powered by Zama fhEVM and ERC-7984 confidential tokens. No one else can see salary amounts on-chain.',
-  },
+  { id: 1, icon: Lock, title: 'Encrypted Salaries', description: 'Salaries are encrypted using FHE before being stored on-chain. Only the employer and the respective employee can decrypt.' },
+  { id: 2, icon: Zap, title: 'One-Click Payroll', description: 'Execute batch confidential transfers in a single transaction. All payouts stay private while provably correct.' },
+  { id: 3, icon: Eye, title: 'Employee Verification', description: 'Employees can independently verify and decrypt their own payments using their wallet signature.' },
+  { id: 4, icon: FileSpreadsheet, title: 'CSV / XLSX Import', description: 'Bulk-import employees and salaries from spreadsheets. Onboard entire teams in seconds.' },
+  { id: 5, icon: Users, title: 'Per-Employer Contracts', description: 'Each employer gets a dedicated Payroll contract via the factory pattern, ensuring data isolation.' },
+  { id: 6, icon: EyeOff, title: 'Truly Confidential', description: 'Powered by Zama fhEVM and ERC-7984 confidential tokens. No one else can see salary amounts on-chain.' },
 ];
 
 const stats = [
@@ -77,6 +44,14 @@ const stats = [
 
 export function Landing() {
   const navigate = useNavigate();
+  const [featuresActiveIndex, setFeaturesActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFeaturesActiveIndex((current) => (current + 1) % features.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-light)]">
@@ -184,40 +159,128 @@ export function Landing() {
         </div>
       </section>
 
-      {/* ─── Features Grid ─── */}
+      {/* ─── Features: Shuffler animation + clickable list + stats ─── */}
       <section className="bg-white py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-16 text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
+          <div className="mb-16 max-w-3xl">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl"
+            >
               End-to-End Encrypted Payroll
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-[var(--color-text-secondary)]">
-              Everything you need to run a privacy-preserving payroll system on
-              Ethereum using fully homomorphic encryption.
-            </p>
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="mt-4 text-lg text-[var(--color-text-secondary)]"
+            >
+              Everything you need to run a privacy-preserving payroll system on Ethereum using fully homomorphic encryption.
+            </motion.p>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((f, idx) => (
-              <motion.div
-                key={f.title}
-                custom={idx}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                variants={fadeUp}
-                className="flex flex-col gap-6 rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-bg-surface)] p-8 group hover:border-[var(--color-primary-light)] transition-all duration-300"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] group-hover:bg-[var(--color-primary)] group-hover:text-white group-hover:shadow-lg group-hover:shadow-[var(--color-primary)]/25 transition-all duration-300">
-                  <f.icon className="h-6 w-6" />
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:items-center">
+            {/* Shuffler: cycling feature cards */}
+            <div className="lg:col-span-5 h-[400px] relative flex flex-col justify-center">
+              <div className="relative w-full h-[280px]">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {features.map((f, idx) => {
+                    const isActive = idx === featuresActiveIndex;
+                    const isNext = idx === (featuresActiveIndex + 1) % features.length;
+                    const isPrev = idx === (featuresActiveIndex - 1 + features.length) % features.length;
+                    if (!isActive && !isNext && !isPrev) return null;
+
+                    let yOffset = 0;
+                    let scale = 1;
+                    let opacity = 1;
+                    let zIndex = 10;
+                    if (isNext) {
+                      yOffset = 40;
+                      scale = 0.95;
+                      opacity = 0.4;
+                      zIndex = 5;
+                    }
+                    if (isPrev) {
+                      yOffset = -40;
+                      scale = 0.95;
+                      opacity = 0;
+                      zIndex = 5;
+                    }
+
+                    return (
+                      <motion.div
+                        key={f.id}
+                        initial={{ opacity: 0, y: 60, scale: 0.9 }}
+                        animate={{ opacity, y: yOffset, scale, zIndex }}
+                        exit={{ opacity: 0, y: -60, scale: 0.9 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                        className="absolute inset-x-0 top-0 rounded-[2rem] border border-[var(--color-border-light)] bg-[var(--color-bg-surface)] p-8 shadow-xl"
+                      >
+                        <div className="flex items-center gap-4 mb-6">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                            <f.icon className="h-6 w-6" />
+                          </div>
+                          <h3 className="text-xl font-bold text-[var(--color-text-primary)]">{f.title}</h3>
+                        </div>
+                        <p className="leading-relaxed text-[var(--color-text-secondary)]">{f.description}</p>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+
+              {/* Live status typewriter */}
+              <div className="mt-8 flex items-center gap-3 w-fit rounded-full border border-[var(--color-border-light)] bg-[var(--color-bg-light)] px-4 py-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-primary)] opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-primary)]" />
+                </span>
+                <span className="font-mono text-xs font-medium text-[var(--color-text-secondary)]">
+                  {featuresActiveIndex % 3 === 0 ? 'Encrypting salary data…' : featuresActiveIndex % 3 === 1 ? 'Batch payment ready…' : 'ERC-7984 verified…'}
+                </span>
+              </div>
+            </div>
+
+            {/* Clickable feature list */}
+            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {features.map((f, idx) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFeaturesActiveIndex(idx)}
+                  className={`text-left p-6 rounded-2xl border transition-all duration-300 ${
+                    featuresActiveIndex === idx
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 shadow-sm'
+                      : 'border-[var(--color-border-light)] hover:border-[var(--color-primary)]/30 hover:bg-[var(--color-bg-surface)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <f.icon
+                      className={`h-5 w-5 shrink-0 ${featuresActiveIndex === idx ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
+                    />
+                    <span className={`font-semibold text-sm ${featuresActiveIndex === idx ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
+                      {f.title}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div className="mt-20 pt-10 border-t border-[var(--color-border-light)] grid grid-cols-2 md:grid-cols-4 gap-8">
+            {stats.map((stat, idx) => (
+              <div key={stat.label}>
+                <div className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)] mb-1">
+                  {stat.label}
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-[var(--color-text-primary)]">{f.title}</h3>
-                  <p className="mt-2 leading-relaxed text-[var(--color-text-secondary)]">
-                    {f.description}
-                  </p>
+                <div className={`font-mono text-xl font-bold ${idx === 0 ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-primary)]'}`}>
+                  {stat.value}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>

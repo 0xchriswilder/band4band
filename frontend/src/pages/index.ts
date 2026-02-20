@@ -9,4 +9,6 @@ export * from './RoadmapPreviewPage';
 export * from './DocusignCallbackPage';
 export * from './DocusignSignedPage';
 export * from './ContractsPage';
+export * from './CreateContractPage';
+export * from './ViewContractPage';
 

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FileSignature, ExternalLink, Loader2, Send, Link2, CheckCircle2, Mail, UserCircle, ArrowLeft, Info } from 'lucide-react';
+import { FileSignature, ExternalLink, Loader2, Send, Link2, Link2Off, CheckCircle2, Mail, ArrowLeft, Info, FileText } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -30,6 +30,18 @@ type ContractRow = {
   created_at: string;
 };
 
+type InAppContractRow = {
+  id: string;
+  employer_address: string;
+  payroll_address: string;
+  employee_address: string | null;
+  contract_type: string;
+  status: 'draft' | 'assigned' | 'signed';
+  signed_at: string | null;
+  created_at: string;
+  form_data?: { contract_name?: string };
+};
+
 export function ContractsPage() {
   const { address, isConnected } = useAccount();
   const { hasPayroll, localEmployees, payrollAddress, refetchEmployees, isLoadingPayroll } = usePayrollEmployer();
@@ -37,8 +49,11 @@ export function ContractsPage() {
 
   const [docusignConnected, setDocusignConnected] = useState(false);
   const [contracts, setContracts] = useState<ContractRow[]>([]);
+  const [inAppContracts, setInAppContracts] = useState<InAppContractRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingInApp, setLoadingInApp] = useState(true);
   const [sending, setSending] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   /** Employer = has a payroll (once loaded). While payroll is still loading, treat as employer so we don't flash employee-only view. */
   const isEmployer = !!address && (hasPayroll || isLoadingPayroll);
@@ -47,21 +62,55 @@ export function ContractsPage() {
   const employerAddr = (address ?? '').toLowerCase();
   const employeeAddr = (address ?? '').toLowerCase();
 
-  useEffect(() => {
-    if (!address) {
-      setLoading(false);
-      return;
-    }
-    const by = isEmployer ? 'employer' : 'employee';
-    const addr = isEmployer ? employerAddr : employeeAddr;
-    fetch(`${INDEXER}/api/docusign/contracts?by=${by}&address=${encodeURIComponent(addr)}`)
+  /** Fetch contracts by role: use employee list until we know they have a payroll. Avoids employees seeing empty list while payroll is loading. */
+  const contractListBy = hasPayroll ? 'employer' : 'employee';
+  const contractListAddr = hasPayroll ? employerAddr : employeeAddr;
+  /** Display "Sent" vs "My" contracts by actual payroll status so list and title match the fetched data. */
+  const showAsEmployer = hasPayroll;
+
+  const fetchContracts = React.useCallback(() => {
+    if (!address) return;
+    setLoading(true);
+    fetch(`${INDEXER}/api/docusign/contracts?by=${contractListBy}&address=${encodeURIComponent(contractListAddr)}`)
       .then((r) => r.json())
       .then((data) => {
         setContracts(Array.isArray(data.data) ? data.data : []);
       })
       .catch(() => setContracts([]))
       .finally(() => setLoading(false));
-  }, [address, isEmployer, employerAddr, employeeAddr]);
+  }, [address, contractListBy, contractListAddr]);
+
+  const fetchInAppContracts = React.useCallback(() => {
+    if (!address) return;
+    setLoadingInApp(true);
+    fetch(`${INDEXER}/api/in-app-contracts?by=${contractListBy}&address=${encodeURIComponent(contractListAddr)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setInAppContracts(Array.isArray(data.data) ? data.data : []);
+      })
+      .catch(() => setInAppContracts([]))
+      .finally(() => setLoadingInApp(false));
+  }, [address, contractListBy, contractListAddr]);
+
+  useEffect(() => {
+    fetchContracts();
+  }, [fetchContracts]);
+
+  useEffect(() => {
+    fetchInAppContracts();
+  }, [fetchInAppContracts]);
+
+  // Refetch when user returns to this tab (e.g. after signing in another tab) so list stays up to date
+  useEffect(() => {
+    const onFocus = () => {
+      if (address) {
+        fetchContracts();
+        fetchInAppContracts();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [address, fetchContracts, fetchInAppContracts]);
 
   useEffect(() => {
     if (!isEmployer || !address) return;
@@ -85,6 +134,29 @@ export function ContractsPage() {
         else toast.error(data.error || 'Could not get auth URL');
       })
       .catch(() => toast.error('Indexer unreachable. Is it running on ' + INDEXER + '?'));
+  };
+
+  const disconnectDocuSign = async () => {
+    if (!employerAddr || disconnecting) return;
+    setDisconnecting(true);
+    try {
+      const res = await fetch(`${INDEXER}/api/docusign/disconnect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employer_address: employerAddr }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to disconnect DocuSign');
+        return;
+      }
+      setDocusignConnected(false);
+      toast.success('DocuSign disconnected');
+    } catch {
+      toast.error('Could not reach server');
+    } finally {
+      setDisconnecting(false);
+    }
   };
 
   const sendContract = async (emp: { address: string }, email: string, name: string) => {
@@ -171,7 +243,7 @@ export function ContractsPage() {
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
       <Link
-        to={isNeither ? '/' : isEmployer ? '/employer' : '/employee'}
+        to={isNeither ? '/' : showAsEmployer ? '/employer' : '/employee'}
         className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-primary)] hover:underline mb-6"
       >
         <ArrowLeft className="h-4 w-4" /> Back to dashboard
@@ -184,38 +256,61 @@ export function ContractsPage() {
         variants={fadeUp}
         className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/15 via-[var(--color-primary)]/8 to-transparent border border-[var(--color-primary)]/20 p-6 mb-8"
       >
-        <div className="flex items-start gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-white/90 shadow-md flex items-center justify-center shrink-0 border border-[var(--color-primary)]/20">
-            <FileSignature className="h-7 w-7 text-[var(--color-primary)]" />
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white/90 shadow-md flex items-center justify-center shrink-0 border border-[var(--color-primary)]/20">
+              <FileSignature className="h-7 w-7 text-[var(--color-primary)]" />
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black text-[var(--color-text-primary)] tracking-tight">
+                Contracts <span className="text-[var(--color-primary)]">e-sign</span>
+              </h1>
+              <p className="text-sm text-[var(--color-text-secondary)] mt-1 max-w-lg">
+                {showAsEmployer
+                  ? 'Send employment agreements via DocuSign or create and assign contracts directly in the app.'
+                  : isNeither
+                    ? 'Send or sign employment agreements with DocuSign. Get started as a company or wait for your employer to send you a contract.'
+                    : 'View and sign contracts sent by your employer. Open the e-sign page to complete your signature.'}
+              </p>
+              {/* DocuSign connected badge — always visible at top when connected */}
+              {showAsEmployer && docusignConnected && (
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/80">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-sm font-semibold text-emerald-800">DocuSign connected</span>
+                </div>
+              )}
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-black text-[var(--color-text-primary)] tracking-tight">
-              Contracts <span className="text-[var(--color-primary)]">e-sign</span>
-            </h1>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1 max-w-lg">
-              {isEmployer
-                ? 'Send employment agreements via DocuSign. Employees sign before onboarding — one flow, fully compliant.'
-                : isNeither
-                  ? 'Send or sign employment agreements with DocuSign. Get started as a company or wait for your employer to send you a contract.'
-                  : 'View and sign contracts sent by your employer. Open the e-sign page to complete your signature.'}
-            </p>
-          </div>
+          {isEmployer && (
+            <Link to="/contracts/create" className="shrink-0">
+              <Button size="lg" className="w-full sm:w-auto text-base font-semibold px-6">
+                <FileText className="h-5 w-5" /> Create contract
+              </Button>
+            </Link>
+          )}
         </div>
       </motion.div>
 
-      {/* About the contract — clarify generic vs your own DocuSign templates */}
-      <motion.div variants={fadeUp} className="mb-6">
+      {/* About the contract — clarify generic vs your own DocuSign templates + in-app creation */}
+      <motion.div variants={fadeUp} className="mb-4">
         <Card variant="bordered" padding="md" className="border-[var(--color-primary)]/20 bg-[var(--color-bg-light)]/50">
           <div className="flex gap-3">
             <Info className="h-5 w-5 text-[var(--color-primary)] shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <h3 className="font-semibold text-[var(--color-text-primary)] mb-1">About the contract content</h3>
-              <p className="text-[var(--color-text-secondary)] leading-relaxed mb-2">
-                By default the app can send a standard Employment Agreement for demo. To use your own contract, set up a template in DocuSign (see below) — then the employee sees and signs the document you chose.
-              </p>
-              <p className="text-[var(--color-text-secondary)] leading-relaxed">
-                <strong>Using your own contracts:</strong> If you have contracts or templates in DocuSign (e.g. in your DocuSign dashboard), set up a <strong>template</strong> in DocuSign (sandbox or production): add your document, add a signer role for the employee, and save. The app can send that template so employees see and sign <em>your</em> document. That way the employee sees your real contract and signs the one you chose.
-              </p>
+            <div className="text-sm space-y-3">
+              <div>
+                <h3 className="font-semibold text-[var(--color-text-primary)] mb-1">About the contract content</h3>
+                <p className="text-[var(--color-text-secondary)] leading-relaxed mb-2">
+                  By default the app can send a standard Employment Agreement for demo. To use your own contract, set up a template in DocuSign (see below) — then the employee sees and signs the document you chose.
+                </p>
+                <p className="text-[var(--color-text-secondary)] leading-relaxed">
+                  <strong>Using your own contracts:</strong> If you have contracts or templates in DocuSign (e.g. in your DocuSign dashboard), set up a <strong>template</strong> in DocuSign (sandbox or production): add your document, add a signer role for the employee, and save. The app can send that template so employees see and sign <em>your</em> document.
+                </p>
+              </div>
+              {isEmployer && (
+                <p className="text-[var(--color-text-secondary)] leading-relaxed pt-2 border-t border-[var(--color-border-light)]">
+                  <strong>In-app contracts:</strong> You can also create and assign contracts directly in this app (no DocuSign). Click <strong>Create contract</strong> to add terms and assign to an employee; they will see it under <strong>My contracts</strong> and can view and sign in-app.
+                </p>
+              )}
             </div>
           </div>
         </Card>
@@ -247,10 +342,10 @@ export function ContractsPage() {
         </motion.div>
       )}
 
-      <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-6">
-        {/* Employer: DocuSign connection */}
+      <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-4">
+        {/* Employer: DocuSign + Create contract in one row so Send/Sent grids sit higher */}
         {isEmployer && (
-          <motion.div variants={fadeUp}>
+          <motion.div variants={fadeUp} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)]">
               {!docusignConnected ? (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -270,21 +365,55 @@ export function ContractsPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200/80">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
-                  <div>
-                    <p className="font-semibold text-emerald-800">DocuSign connected</p>
-                    <p className="text-xs text-emerald-700/90">You can send contracts to your team below.</p>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200/80">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-emerald-800">DocuSign connected</p>
+                      <p className="text-xs text-emerald-700/90">You can send contracts to your team below.</p>
+                    </div>
                   </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={disconnectDocuSign}
+                    disabled={disconnecting}
+                    className="shrink-0 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
+                    title="Disconnect DocuSign"
+                  >
+                    {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2Off className="h-4 w-4" />}
+                    {' '}Disconnect
+                  </Button>
                 </div>
               )}
+            </Card>
+            <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)]">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
+                    <FileText className="h-5 w-5 text-[var(--color-primary)]" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-[var(--color-text-primary)]">Create contract (no DocuSign)</h2>
+                    <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
+                      Create and assign a contract in the app. Employee can view and sign in-app.
+                      {!hasPayroll && !isLoadingPayroll && ' Create a payroll first to assign to employees.'}
+                    </p>
+                  </div>
+                </div>
+                <Link to="/contracts/create" className="shrink-0">
+                  <Button size="md" className="font-semibold">
+                    <FileText className="h-4 w-4" /> Create contract
+                  </Button>
+                </Link>
+              </div>
             </Card>
           </motion.div>
         )}
 
-        {/* Contracts: grid so Send + Sent are side by side on xl when employer has DocuSign; otherwise Sent/My only. */}
-        <div className={isEmployer && hasPayroll && docusignConnected ? 'grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch' : ''}>
-        {isEmployer && hasPayroll && docusignConnected && (
+        {/* Contracts: Send + Sent grids — moved up to fill space */}
+        <div className={showAsEmployer && docusignConnected ? 'grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch' : ''}>
+        {showAsEmployer && docusignConnected && (
           <div className="min-w-0 flex flex-col">
             <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] p-0 flex-1 flex flex-col">
               <div className="bg-gradient-to-r from-[var(--color-primary)]/8 to-transparent border-b border-[var(--color-border-light)] px-6 py-4">
@@ -362,67 +491,102 @@ export function ContractsPage() {
           <Card variant="elevated" padding="lg" className="overflow-hidden border border-[var(--color-border-light)] p-0 flex-1 flex flex-col min-h-0">
             <div className="bg-gradient-to-r from-[var(--color-primary)]/8 to-transparent border-b border-[var(--color-border-light)] px-6 py-4">
               <h2 className="font-bold text-[var(--color-text-primary)]">
-                {isEmployer ? 'Sent contracts' : 'My contracts'}
+                {showAsEmployer ? 'Sent contracts' : 'My contracts'}
               </h2>
               <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
-                {isEmployer ? 'Contracts you’ve sent for e-signature.' : isNeither
+                {showAsEmployer ? 'Contracts you’ve sent for e-signature.' : isNeither
                     ? 'Contracts you send (as employer) or receive (as employee) will appear here.'
                     : 'Agreements sent by your employer — open to sign.'}
               </p>
             </div>
             <div className="p-6">
-              {loading ? (
+              {loading || loadingInApp ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-[var(--color-text-tertiary)]">
                   <Loader2 className="h-5 w-5 animate-spin" /> Loading…
                 </div>
-              ) : contracts.length === 0 ? (
+              ) : contracts.length === 0 && inAppContracts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-light)] flex items-center justify-center mb-4">
                     <FileSignature className="h-8 w-8 text-[var(--color-text-tertiary)]" />
                   </div>
                   <p className="text-sm font-medium text-[var(--color-text-secondary)]">No contracts yet</p>
                   <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
-                    {isEmployer
-                    ? 'Send a contract using the section above.'
+                    {showAsEmployer
+                    ? 'Send a contract via DocuSign above or create one in-app.'
                     : isNeither
                       ? 'Create a payroll and send contracts as an employer, or wait for your employer to send you one as an employee.'
                       : 'Your employer will send you a contract when ready.'}
                   </p>
                 </div>
-              ) : isEmployer ? (
+              ) : showAsEmployer ? (
                 <ul className="space-y-3">
                   {contracts.map((c) => {
                     const empAddr = c.employee_address.toLowerCase();
                     const empName = employeeNames?.[empAddr] || formatAddress(c.employee_address, 8);
                     return (
-                    <li
-                      key={c.id}
-                      className="flex items-center justify-between gap-4 py-3 px-4 rounded-xl bg-[var(--color-bg-light)]/50 border border-[var(--color-border-light)]"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Avatar
-                          src={employeeAvatars?.[empAddr]}
-                          fallbackText={empName}
-                          className="w-9 h-9 rounded-lg"
-                        />
-                        <div>
-                          <p className="font-medium text-[var(--color-text-primary)] font-mono text-sm">{formatAddress(c.employee_address, 8)}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Badge variant={c.signed_at ? 'success' : 'default'} size="sm">
-                              {c.signed_at ? 'Signed' : c.status}
-                            </Badge>
+                      <li
+                        key={`docusign-${c.id}`}
+                        className="flex items-center justify-between gap-4 py-3 px-4 rounded-xl bg-[var(--color-bg-light)]/50 border border-[var(--color-border-light)]"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar
+                            src={employeeAvatars?.[empAddr]}
+                            fallbackText={empName}
+                            className="w-9 h-9 rounded-lg"
+                          />
+                          <div>
+                            <p className="font-medium text-[var(--color-text-primary)] font-mono text-sm">{formatAddress(c.employee_address, 8)}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <Badge variant="default" size="sm">DocuSign</Badge>
+                              <Badge variant={c.signed_at ? 'success' : 'default'} size="sm">
+                                {c.signed_at ? 'Signed' : c.status}
+                              </Badge>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </li>
-                  );
+                      </li>
+                    );
+                  })}
+                  {inAppContracts.map((c) => {
+                    const empAddr = c.employee_address?.toLowerCase();
+                    const empName = empAddr ? (employeeNames?.[empAddr] || formatAddress(c.employee_address!, 8)) : 'Unassigned';
+                    const title = c.form_data?.contract_name || 'In-app contract';
+                    return (
+                      <li
+                        key={`inapp-${c.id}`}
+                        className="flex items-center justify-between gap-4 py-3 px-4 rounded-xl bg-[var(--color-bg-light)]/50 border border-[var(--color-border-light)]"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar
+                            src={empAddr ? employeeAvatars?.[empAddr] : undefined}
+                            fallbackText={empName}
+                            className="w-9 h-9 rounded-lg"
+                          />
+                          <div>
+                            <p className="font-medium text-[var(--color-text-primary)] text-sm">{title}</p>
+                            <p className="text-xs text-[var(--color-text-tertiary)] font-mono">
+                              {c.employee_address ? formatAddress(c.employee_address, 8) : 'Draft — not assigned'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <Badge variant="default" size="sm">In-app</Badge>
+                              <Badge variant={c.status === 'signed' ? 'success' : 'default'} size="sm">
+                                {c.status === 'draft' ? 'Draft' : c.status === 'assigned' ? 'Pending' : 'Signed'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <Link to={`/contracts/view/${c.id}`}>
+                          <Button size="sm" variant="ghost">View</Button>
+                        </Link>
+                      </li>
+                    );
                   })}
                 </ul>
               ) : (
                 <div className="space-y-4">
                   {contracts.map((c) => (
                     <div
-                      key={c.id}
+                      key={`docusign-${c.id}`}
                       className="rounded-xl border-2 border-[var(--color-border-light)] bg-gradient-to-br from-white to-[var(--color-bg-light)]/30 p-5 shadow-sm hover:shadow-md transition-shadow"
                     >
                       <div className="flex items-start gap-4">
@@ -435,6 +599,7 @@ export function ContractsPage() {
                             This document is for signature as part of confidential payroll onboarding. Please sign below to complete.
                           </p>
                           <div className="flex flex-wrap items-center gap-2 mt-4">
+                            <Badge variant="default" size="sm">DocuSign</Badge>
                             <Badge variant={c.status === 'signed' ? 'success' : 'default'} size="sm">
                               {c.status === 'signed' ? 'Signed' : c.status}
                             </Badge>
@@ -453,6 +618,38 @@ export function ContractsPage() {
                       </div>
                     </div>
                   ))}
+                  {inAppContracts.map((c) => {
+                    const title = c.form_data?.contract_name || 'In-app contract';
+                    return (
+                      <div
+                        key={`inapp-${c.id}`}
+                        className="rounded-xl border-2 border-[var(--color-border-light)] bg-gradient-to-br from-white to-[var(--color-bg-light)]/30 p-5 shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
+                            <FileSignature className="h-6 w-6 text-[var(--color-primary)]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-[var(--color-text-primary)] text-lg">{title}</h3>
+                            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+                              Contract created by your employer. View and sign in-app.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 mt-4">
+                              <Badge variant="default" size="sm">In-app</Badge>
+                              <Badge variant={c.status === 'signed' ? 'success' : 'default'} size="sm">
+                                {c.status === 'signed' ? 'Signed' : 'Pending'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <Link to={`/contracts/view/${c.id}`}>
+                            <Button size="sm" variant={c.status === 'signed' ? 'secondary' : 'primary'} className="shrink-0">
+                              <ExternalLink className="h-4 w-4" /> {c.status === 'signed' ? 'View contract' : 'View & sign'}
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
