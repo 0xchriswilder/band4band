@@ -93,6 +93,66 @@ Each roadmap page shows a short description and a "Planned" bullet list. E-sign,
 
 ---
 
+## Contract test results
+
+Smart contract tests are in `contracts/test/ConfidentialPayroll.test.ts`. Run them with:
+
+```bash
+cd contracts
+npx hardhat test
+```
+
+**Latest run (exact output):**
+
+```
+  Confidential Payroll
+    ConfidentialPayrollToken
+      Deployment
+        √ should have correct name
+        √ should have correct symbol
+        √ should have correct underlying token
+        √ should have 6 decimals matching USDC
+      Wrapping USDC → cUSDCP
+        √ should wrap USDC into cUSDCP
+        √ should create encrypted balance after wrap
+        √ should decrypt to correct wrapped amount (65ms)
+        √ should revert on insufficient allowance
+    PayrollFactory
+      √ should deploy payroll for employer
+      √ should track employer in allEmployers list
+      √ should revert duplicate registration
+      √ should allow a second employer to register
+    Payroll
+      Deployment
+        √ should set correct employer
+        √ should set correct confidential token
+      Onboarding
+        √ should onboard a single employee
+        √ should batch-onboard employees
+        √ should revert onboarding zero address
+        √ should revert double onboarding
+        - should revert if non-employer tries to onboard
+      Removal
+        √ should remove employee
+        - should revert removal by non-employer
+      Salary Update
+        √ should update salary and emit event
+        √ should revert update for non-whitelisted employee
+      Pay Salary
+        √ should pay salary to single employee
+        √ should revert payment for non-whitelisted employee
+        - should revert payment by non-employer
+      Batch Pay Salaries
+        √ should batch-pay salaries to multiple employees
+        √ should revert batch pay with length mismatch
+
+
+  25 passing (911ms)
+  3 pending
+```
+
+---
+
 ## Judging criteria (how this project addresses them)
 
 - **Functionality**  

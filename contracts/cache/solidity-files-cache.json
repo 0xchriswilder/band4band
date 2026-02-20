@@ -45,8 +45,8 @@
       ]
     },
     "E:\\Cusdt\\zama-confidential-payroll-dapp\\contracts\\fhevmTemp\\@fhevm\\solidity\\config\\ZamaConfig.sol": {
-      "lastModificationDate": 1771348648589,
-      "contentHash": "945d01252eaee3ca974992cce027342b",
+      "lastModificationDate": 1771595836434,
+      "contentHash": "e2172ef756221e77fec25fea646b3462",
       "sourceName": "@fhevm/solidity/config/ZamaConfig.sol",
       "solcConfig": {
         "version": "0.8.27",
@@ -971,7 +971,7 @@
       ]
     },
     "E:\\Cusdt\\zama-confidential-payroll-dapp\\contracts\\contracts\\Payroll.sol": {
-      "lastModificationDate": 1771348098353,
+      "lastModificationDate": 1771504594339,
       "contentHash": "355ecdb8b1a481c7adb798af12dbafbf",
       "sourceName": "contracts/Payroll.sol",
       "solcConfig": {
