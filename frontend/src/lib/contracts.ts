@@ -52,11 +52,14 @@ export const CONF_TOKEN_ABI = parseAbi([
   'function wrap(address to, uint256 amount)',
   'function unwrap(address from, address to, bytes32 encryptedAmount, bytes inputProof)',
   'function unwrap(address from, address to, bytes32 amount)',
+  'function finalizeUnwrap(bytes32 burntAmount, uint64 burntAmountCleartext, bytes decryptionProof)',
   'function confidentialBalanceOf(address account) view returns (bytes32)',
   'function setOperator(address operator, uint48 until)',
   'function isOperator(address account, address operator) view returns (bool)',
   'function underlying() view returns (address)',
   'function rate() view returns (uint256)',
+  'event UnwrapRequested(address indexed receiver, bytes32 amount)',
+  'event UnwrapFinalized(address indexed receiver, bytes32 encryptedAmount, uint64 cleartextAmount)',
 ]);
 
 

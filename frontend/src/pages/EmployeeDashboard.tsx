@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
 import {
   UserCircle,
@@ -29,12 +29,12 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { useFhevmDecrypt } from '../hooks/useFhevmDecrypt';
-import { useFhevmEncrypt } from '../hooks/useFhevmEncrypt';
 import { useEmployeePaymentHistory, useEmployeeProfile, useSubmitEmployeeInvoice, useEmployeeInvoices, useEmployerCompanyName } from '../hooks/usePayrollHistory';
 import { useConfidentialBalance } from '../hooks/useConfidentialBalance';
 import { useWrapToken } from '../hooks/useWrapToken';
+import { useUnwrapToken } from '../hooks/useUnwrapToken';
 import { useFhevm } from '../providers/useFhevmContext';
-import { CONTRACTS, CONF_TOKEN_ABI, TOKEN_CONFIG } from '../lib/contracts';
+import { CONTRACTS, TOKEN_CONFIG } from '../lib/contracts';
 import { formatAddress, formatAmount, parseAmount, getUserFriendlyErrorMessage } from '../lib/utils';
 import { ConnectWalletCTA } from '../components/ConnectWalletCTA';
 import { EmployerLogo } from '../components/EmployerLogo';
@@ -51,8 +51,6 @@ export function EmployeeDashboard() {
   const { address, isConnected } = useAccount();
   const { isReady: fheReady } = useFhevm();
   const { decryptHandle } = useFhevmDecrypt();
-  const { encryptAmount } = useFhevmEncrypt();
-  const { writeContractAsync, isPending: isUnwrapWriting } = useWriteContract();
   const { employee, isEmployee, isLoading: employeeLoading } = useEmployeeProfile();
   const { payments, total: paymentCount, isLoading, reload } = useEmployeePaymentHistory();
   const { submit: submitInvoice, isSubmitting: isSubmittingInvoice, error: invoiceError } = useSubmitEmployeeInvoice();
@@ -78,12 +76,13 @@ export function EmployeeDashboard() {
     refetch: refetchUsdc,
   } = useWrapToken();
 
+  const { unwrap, isUnwrapping, unwrapStepLabel, fheReady: fheReadyUnwrap } = useUnwrapToken();
+
   const [showBalance, setShowBalance] = useState(false);
   const [decryptedValues, setDecryptedValues] = useState<Record<string, bigint>>({});
   const [decryptingKey, setDecryptingKey] = useState<string | null>(null);
   const [wrapAmount, setWrapAmount] = useState('');
   const [unwrapAmount, setUnwrapAmount] = useState('');
-  const [isUnwrapping, setIsUnwrapping] = useState(false);
   const [invoiceName, setInvoiceName] = useState('');
   const [invoiceRole, setInvoiceRole] = useState('');
   const [invoiceMonth, setInvoiceMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -101,35 +100,6 @@ export function EmployeeDashboard() {
       toast.error(getUserFriendlyErrorMessage(err, 'Decrypt failed'));
     } finally {
       setDecryptingKey(null);
-    }
-  };
-
-  const handleUnwrap = async () => {
-    if (!address || !unwrapAmount || Number(unwrapAmount) <= 0) return;
-    setIsUnwrapping(true);
-    try {
-      const amount = parseAmount(unwrapAmount, TOKEN_CONFIG.decimals);
-      const encrypted = await encryptAmount(amount, CONTRACTS.CONF_TOKEN);
-      if (!encrypted || !encrypted.handles[0]) {
-        throw new Error('Failed to encrypt unwrap amount');
-      }
-
-      await writeContractAsync({
-        address: CONTRACTS.CONF_TOKEN,
-        abi: CONF_TOKEN_ABI,
-        functionName: 'unwrap',
-        args: [address, address, encrypted.handles[0], encrypted.inputProof as `0x${string}`],
-      });
-
-      toast.success('Unwrap initiated (async via gateway)');
-      setUnwrapAmount('');
-      refetchCusdcpBalance();
-      refetchUsdc();
-    } catch (err: any) {
-      toast.error(getUserFriendlyErrorMessage(err, 'Unwrap failed'));
-      console.error('[Unwrap] Failed:', err);
-    } finally {
-      setIsUnwrapping(false);
     }
   };
 
@@ -620,12 +590,26 @@ export function EmployeeDashboard() {
                 <Button
                   size="md"
                   variant="secondary"
-                  onClick={handleUnwrap}
-                  disabled={!isConnected || isUnwrapping || isUnwrapWriting || !unwrapAmount || Number(unwrapAmount) <= 0 || !fheReady}
-                  loading={isUnwrapping || isUnwrapWriting}
+                  onClick={async () => {
+                    if (!unwrapAmount || Number(unwrapAmount) <= 0) return;
+                    try {
+                      const hash = await unwrap(unwrapAmount);
+                      if (hash) {
+                        toast.success('Unwrapped! USDC received.');
+                        setUnwrapAmount('');
+                        refetchCusdcpBalance();
+                        refetchUsdc();
+                      }
+                    } catch (err: any) {
+                      toast.error(getUserFriendlyErrorMessage(err, 'Unwrap failed'));
+                      console.error('[Unwrap] Failed:', err);
+                    }
+                  }}
+                  disabled={!isConnected || isUnwrapping || !unwrapAmount || Number(unwrapAmount) <= 0 || !fheReadyUnwrap}
+                  loading={isUnwrapping}
                 >
                   <ShieldOff className="h-4 w-4" />
-                  Unwrap
+                  {unwrapStepLabel}
                 </Button>
               </div>
             </Card>
