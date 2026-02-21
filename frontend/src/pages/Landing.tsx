@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Footer } from '../components/layout/Footer';
+import { PayrollExecutionAnimation } from '../components/PayrollExecutionAnimation';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -502,7 +503,7 @@ export function Landing() {
                 </div>
               </motion.div>
 
-              {/* Right — encrypted balance mockup */}
+              {/* Right — payroll execution animation */}
               <motion.div
                 initial={{ opacity: 0, x: 30 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -510,40 +511,7 @@ export function Landing() {
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="relative hidden lg:block"
               >
-                <div className="rounded-2xl border border-zinc-700 bg-zinc-800/50 p-6 backdrop-blur-sm shadow-xl">
-                  <div className="flex items-center gap-3 mb-6 border-b border-zinc-700 pb-4">
-                    <div className="w-12 h-12 flex items-center justify-center">
-                      <img src="/payroll.png" alt="" className="w-12 h-12 object-contain" />
-                    </div>
-                    <div>
-                      <p className="text-white/60 text-sm font-medium">Confidential Balance</p>
-                      <p className="text-white font-bold">Encrypted cUSDCp</p>
-                    </div>
-                  </div>
-                  <div className="text-5xl font-black text-white mb-2 tracking-wider">
-                    $&bull;&bull;&bull;&bull;&bull;&bull;
-                  </div>
-                  <p className="text-zinc-500 text-sm mb-6">
-                    Only you can decrypt this balance
-                  </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-zinc-700/50 rounded-xl p-3 border border-zinc-600">
-                      <p className="text-zinc-500 text-xs mb-0.5">Last Payment</p>
-                      <p className="text-white font-bold text-sm">$&bull;&bull;&bull;&bull;</p>
-                    </div>
-                    <div className="bg-zinc-700/50 rounded-xl p-3 border border-zinc-600">
-                      <p className="text-zinc-500 text-xs mb-0.5">Pay Cycle</p>
-                      <p className="text-white font-bold text-sm">Monthly</p>
-                    </div>
-                    <div className="bg-[var(--color-primary)]/10 rounded-xl p-3 border border-[var(--color-primary)]/30">
-                      <p className="text-zinc-500 text-xs mb-0.5">Status</p>
-                      <p className="text-white font-bold text-sm flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
-                        Active
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <PayrollExecutionAnimation />
               </motion.div>
             </div>
           </div>
